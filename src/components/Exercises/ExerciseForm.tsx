@@ -5,6 +5,7 @@ import { useExercisesStore } from "../../stores/useExercisesStore";
 import { useStockPricesStore } from "../../stores/useStockPricesStore";
 import { useCurrencyStore } from "../../stores/useCurrencyStore";
 import { useThemeStore } from "../../stores/useThemeStore";
+import { useTaxSettingsStore } from "../../stores/useTaxSettingsStore";
 import {
   calculateVestedShares,
   calculateExercisedShares,
@@ -39,6 +40,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
   const stockPrices = useStockPricesStore((state) => state.stockPrices);
   const currentUsdIlsRate = useCurrencyStore((state) => state.usdIlsRate);
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
+  const { marginalTaxRate, annualIncome, useProgressiveTax } = useTaxSettingsStore();
 
   const {
     register,
@@ -87,16 +89,69 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
       )
     : 0;
 
+  // Israeli progressive tax brackets for 2024/2025 (annual amounts in ILS)
+  const calculateIsraeliIncomeTax = (annualIncomeILS: number): number => {
+    const brackets = [
+      { min: 0, max: 79560, rate: 0.10 },
+      { min: 79560, max: 114120, rate: 0.14 },
+      { min: 114120, max: 177360, rate: 0.20 },
+      { min: 177360, max: 247440, rate: 0.31 },
+      { min: 247440, max: 514920, rate: 0.35 },
+      { min: 514920, max: 663240, rate: 0.47 },
+      { min: 663240, max: 721560, rate: 0.47 },
+      { min: 721560, max: Infinity, rate: 0.50 } // 47% + 3% surtax
+    ];
+
+    let tax = 0;
+    let previousMax = 0;
+
+    for (const bracket of brackets) {
+      if (annualIncomeILS > bracket.min) {
+        const taxableInBracket = Math.min(annualIncomeILS, bracket.max) - previousMax;
+        tax += taxableInBracket * bracket.rate;
+        previousMax = bracket.max;
+        
+        if (annualIncomeILS <= bracket.max) break;
+      }
+    }
+
+    return tax;
+  };
+
   const calculateTaxEstimate = () => {
     if (!selectedGrant || !watchedAmount || !watchedExercisePrice) return 0;
 
-    const grossGain = Number(watchedAmount) * Number(watchedExercisePrice);
-    const grantValue = Number(watchedAmount) * selectedGrant.price;
-    const capitalGain = grossGain - grantValue;
+    const grossGainUSD = Number(watchedAmount) * Number(watchedExercisePrice);
+    const grantValueUSD = Number(watchedAmount) * selectedGrant.price;
+    const capitalGainUSD = grossGainUSD - grantValueUSD;
+    const usdToIls = watchedUsdIlsRate || currentUsdIlsRate;
 
-    // Simplified Israeli tax calculation
-    const taxRate = selectedGrant.type === "RSUs" ? 0.47 : 0.25; // RSUs: income tax, Options: capital gains
-    return capitalGain * taxRate;
+    if (selectedGrant.type === "RSUs") {
+      // RSUs: Income tax on the entire gross gain
+      const grossGainILS = grossGainUSD * usdToIls;
+      
+      // If user has set a marginal tax rate, use it directly
+      if (marginalTaxRate !== null && !useProgressiveTax) {
+        return grossGainUSD * marginalTaxRate;
+      }
+      
+      // If user provided annual income, calculate tax on top of existing income
+      if (annualIncome !== null && annualIncome > 0) {
+        const totalIncomeILS = annualIncome + grossGainILS;
+        const taxWithRSU = calculateIsraeliIncomeTax(totalIncomeILS);
+        const taxWithoutRSU = calculateIsraeliIncomeTax(annualIncome);
+        const additionalTaxILS = taxWithRSU - taxWithoutRSU;
+        return additionalTaxILS / usdToIls;
+      }
+      
+      // Default: Calculate as if this is the only income (simplified)
+      const taxILS = calculateIsraeliIncomeTax(grossGainILS);
+      return taxILS / usdToIls;
+    } else {
+      // Options: Capital gains tax (25%) only on the profit
+      // If held under Section 102 for 2+ years, otherwise may be higher
+      return capitalGainUSD * 0.25;
+    }
   };
 
   const taxEstimate = calculateTaxEstimate();
@@ -461,8 +516,12 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
                 }`}
               >
                 {selectedGrant.type === "RSUs"
-                  ? "~47% (Income Tax)"
-                  : "~25% (Capital Gains)"}
+                  ? marginalTaxRate !== null && !useProgressiveTax
+                    ? `${(marginalTaxRate * 100).toFixed(0)}% Marginal Rate`
+                    : annualIncome !== null && annualIncome > 0
+                    ? "Progressive (on top of income)"
+                    : "Progressive Income Tax"
+                  : "25% Capital Gains"}
               </p>
             </div>
             <div>
@@ -491,6 +550,13 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
                 Rate: {(watchedUsdIlsRate || currentUsdIlsRate).toFixed(4)}
               </p>
             </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+            <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+              <strong>Note:</strong> RSU tax is calculated using Israeli progressive income tax brackets (10%-50%). 
+              This is a simplified calculation - actual tax may vary based on your total annual income, 
+              Section 102 status, holding period, and other factors. Consult a tax professional for accurate calculations.
+            </p>
           </div>
         </div>
       )}
