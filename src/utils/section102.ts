@@ -62,9 +62,9 @@ export const formatSection102TimeRemaining = (grant: Grant, currentDate: Date = 
   const daysInMonth = daysRemaining % 30;
   
   if (monthsRemaining > 0) {
-    return `${monthsRemaining} month${monthsRemaining !== 1 ? 's' : ''} ${daysInMonth} day${daysInMonth !== 1 ? 's' : ''}`;
+    return `${monthsRemaining}m ${daysInMonth}d`;
   }
-  return `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`;
+  return `${daysRemaining}d`;
 };
 
 /**
@@ -125,7 +125,7 @@ export const getSection102Status = (grant: Grant, currentDate: Date = new Date()
   if (!isSection102) {
     return {
       status: 'not-applicable',
-      text: 'Not Section 102',
+      text: 'Not 102',
       color: 'gray'
     };
   }
@@ -133,7 +133,7 @@ export const getSection102Status = (grant: Grant, currentDate: Date = new Date()
   if (hasMetSection102HoldingPeriod(grant, currentDate)) {
     return {
       status: 'eligible',
-      text: '✓ Section 102 Eligible',
+      text: '✓',
       color: 'green'
     };
   }
@@ -141,7 +141,7 @@ export const getSection102Status = (grant: Grant, currentDate: Date = new Date()
   const timeRemaining = formatSection102TimeRemaining(grant, currentDate);
   return {
     status: 'waiting',
-    text: `Section 102 in ${timeRemaining}`,
+    text: timeRemaining,
     color: 'yellow'
   };
 };

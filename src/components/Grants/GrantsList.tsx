@@ -4,7 +4,7 @@ import { useExercisesStore } from '../../stores/useExercisesStore';
 import { useStockPricesStore } from '../../stores/useStockPricesStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { calculateVestedShares, calculateExercisedShares, formatCurrency, formatDate } from '../../utils/calculations';
-import { getSection102Status, formatSection102TimeRemaining } from '../../utils/section102';
+import { getSection102Status } from '../../utils/section102';
 import { Grant } from '../../types';
 
 interface GrantsListProps {
@@ -147,16 +147,9 @@ export const GrantsList: React.FC<GrantsListProps> = ({ onEditGrant }) => {
                       gray: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
                     };
                     return (
-                      <div>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClasses[status.color as keyof typeof colorClasses]}`}>
-                          {status.text}
-                        </span>
-                        {status.status === 'waiting' && grant.isSection102 && (
-                          <div className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {formatSection102TimeRemaining(grant)} remaining
-                          </div>
-                        )}
-                      </div>
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClasses[status.color as keyof typeof colorClasses]}`}>
+                        {status.text}
+                      </span>
                     );
                   })()}
                 </td>
