@@ -47,7 +47,7 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(
           </svg>
         </div>
         
-        <style jsx>{`
+        <style>{`
           input[type="date"]::-webkit-calendar-picker-indicator {
             background: transparent;
             bottom: 0;
