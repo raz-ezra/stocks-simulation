@@ -306,13 +306,6 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         <div className="space-y-6">
           {/* Theme Controls */}
           <div>
-            <h3
-              className={`text-sm font-medium mb-3 ${
-                isDarkMode ? "text-gray-200" : "text-gray-700"
-              }`}
-            >
-              Appearance
-            </h3>
             <div className="flex items-center justify-between">
               <div>
                 <span
@@ -349,13 +342,6 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
 
           {/* Mock Data Toggle */}
           <div>
-            <h3
-              className={`text-sm font-medium mb-3 ${
-                isDarkMode ? "text-gray-200" : "text-gray-700"
-              }`}
-            >
-              Data Mode
-            </h3>
             <div className="flex items-center justify-between">
               <div>
                 <span
@@ -392,13 +378,6 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
 
           {/* Auto-fetch Controls */}
           <div>
-            <h3
-              className={`text-sm font-medium mb-3 ${
-                isDarkMode ? "text-gray-200" : "text-gray-700"
-              }`}
-            >
-              Stock Price Fetching
-            </h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -407,7 +386,7 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                       isDarkMode ? "text-gray-300" : "text-gray-600"
                     }`}
                   >
-                    Auto-fetch
+                    Auto-fetch stock prices
                   </span>
                   <p
                     className={`text-xs ${
