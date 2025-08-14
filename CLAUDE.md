@@ -95,8 +95,6 @@ If this occurs:
 
 ## Key Development Patterns
 
-1. when developing, do no run `npm run dev`, it already happens in a different terminal
-
 ### Adding New Grant Types
 1. Update `type` union in `src/types/index.ts`
 2. Modify calculation logic in `src/utils/calculations.ts`  
@@ -119,8 +117,8 @@ If this occurs:
 VITE_FINNHUB_API_KEY=your_finnhub_api_key_here
 ```
 
-**Without API key**: App uses mock data with realistic price variation
-**Mock data available for**: LMND, AAPL, GOOGL, MSFT, TSLA, NVDA, META, AMZN, NFLX, CRM
+**Without API key**: App shows error messages requiring API key configuration
+**API key setup**: Can be configured via Settings panel or environment variable
 
 ## Financial Calculations Context
 

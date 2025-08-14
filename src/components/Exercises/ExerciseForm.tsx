@@ -528,7 +528,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
               <span className={isDarkMode ? "text-gray-400" : "text-gray-600"}>
                 Gross Gain (USD):
               </span>
-              <p className="font-semibold">${grossGain.toLocaleString()}</p>
+              <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>${grossGain.toLocaleString()}</p>
             </div>
             <div>
               <span className={isDarkMode ? "text-gray-400" : "text-gray-600"}>
@@ -571,7 +571,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
               <span className={isDarkMode ? "text-gray-400" : "text-gray-600"}>
                 Estimated Net (USD):
               </span>
-              <p className="font-semibold text-green-600">
+              <p className={`font-semibold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
                 ${netEstimate.toLocaleString()}
               </p>
             </div>
@@ -579,7 +579,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
               <span className={isDarkMode ? "text-gray-400" : "text-gray-600"}>
                 Estimated Net (ILS):
               </span>
-              <p className="font-semibold text-green-600">
+              <p className={`font-semibold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
                 ₪
                 {(
                   netEstimate * (watchedUsdIlsRate || currentUsdIlsRate)

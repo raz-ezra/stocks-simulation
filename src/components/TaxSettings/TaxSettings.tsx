@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTaxSettingsStore } from '../../stores/useTaxSettingsStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { CollapsiblePanel } from '../UI/CollapsiblePanel';
+import { TaxBracketsModal } from './TaxBracketsModal';
 
 export const TaxSettings: React.FC = () => {
+  const [showTaxBrackets, setShowTaxBrackets] = useState(false);
+  
   const {
     marginalTaxRate,
     annualIncome,
@@ -180,44 +183,6 @@ export const TaxSettings: React.FC = () => {
           </div>
         </div>
 
-        {/* Tax Brackets Reference */}
-        <div>
-          <h3 className={`text-lg font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Israeli Tax Brackets (2024/2025)
-          </h3>
-          <div className={`rounded-lg overflow-hidden border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-            <table className={`w-full text-sm ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-              <thead className={isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}>
-                <tr>
-                  <th className={`px-4 py-2 text-left ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Tax Rate
-                  </th>
-                  <th className={`px-4 py-2 text-left ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Annual Income
-                  </th>
-                  <th className={`px-4 py-2 text-left ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Monthly Income
-                  </th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${isDarkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-                {taxBrackets.map((bracket) => (
-                  <tr key={bracket.rate} className={isDarkMode ? 'text-gray-300' : 'text-gray-600'}>
-                    <td className="px-4 py-2 font-medium">
-                      {(bracket.rate * 100).toFixed(0)}%
-                    </td>
-                    <td className="px-4 py-2">{bracket.range}</td>
-                    <td className="px-4 py-2">{bracket.monthly}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className={`text-xs mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            * 50% rate includes 3% surtax for high earners
-          </p>
-        </div>
-
         {/* Important Notes */}
         <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-yellow-900/20' : 'bg-yellow-50'}`}>
           <h4 className={`text-sm font-semibold mb-2 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-800'}`}>
@@ -229,8 +194,24 @@ export const TaxSettings: React.FC = () => {
             <li>• Tax brackets frozen for 2025-2027 at 2024 levels</li>
             <li>• Consult a tax professional for accurate calculations</li>
           </ul>
+          <div className="mt-3 pt-2 border-t border-yellow-200 dark:border-yellow-700">
+            <button
+              onClick={() => setShowTaxBrackets(true)}
+              className={`text-xs font-medium underline hover:no-underline transition-colors ${
+                isDarkMode ? 'text-yellow-400 hover:text-yellow-300' : 'text-yellow-800 hover:text-yellow-700'
+              }`}
+            >
+              View Israeli Tax Brackets (2024/2025) →
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Tax Brackets Modal */}
+      <TaxBracketsModal 
+        isOpen={showTaxBrackets}
+        onClose={() => setShowTaxBrackets(false)}
+      />
     </CollapsiblePanel>
   );
 };
