@@ -18,6 +18,7 @@ const getPolygonApiKey = (): string => {
 };
 
 const mockPrices: { [key: string]: number } = {
+  LMND: 18.5,  // Lemonade Inc
   AAPL: 185.5,
   GOOGL: 138.25,
   MSFT: 378.85,
@@ -134,11 +135,14 @@ export const fetchStockPrice = async (ticker: string, forceRefresh: boolean = fa
       const result = await fetchFromPolygon(ticker);
       return result;
     } catch (error) {
+      console.warn(`Polygon API failed for ${ticker}, falling back to mock data:`, error);
       // Polygon.io failed, falling back to mock data
     }
   } else if (POLYGON_API_KEY !== 'demo') {
+    console.info(`Rate limit reached for ${ticker}, using mock data`);
     // Rate limit reached, using mock data
   } else {
+    console.info(`No Polygon.io API key configured. Add one in Settings to get real stock prices.`);
     // No Polygon.io API key provided, using mock data
   }
   
@@ -151,7 +155,7 @@ export const fetchStockPrice = async (ticker: string, forceRefresh: boolean = fa
       ticker,
       price: 0,
       success: false,
-      error: `Failed to fetch ${ticker}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      error: `No API key configured and mock price not available for ${ticker}. Add a Polygon.io API key in Settings for real prices.`,
     };
   }
 };

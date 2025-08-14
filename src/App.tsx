@@ -6,6 +6,7 @@ import { Grants } from "./components/Grants/Grants";
 import { Exercises } from "./components/Exercises/Exercises";
 import { Simulations } from "./components/Simulations/Simulations";
 import { Settings } from "./components/Settings/Settings";
+import { TaxSettings } from "./components/TaxSettings/TaxSettings";
 import { useGrantsStore } from "./stores/useGrantsStore";
 import { useStockPricesStore } from "./stores/useStockPricesStore";
 import { useCurrencyStore } from "./stores/useCurrencyStore";
@@ -289,6 +290,8 @@ const AppContent: React.FC = () => {
             <CollapsiblePanel title="Simulations" icon="📈" defaultOpen={false}>
               <Simulations />
             </CollapsiblePanel>
+
+            <TaxSettings />
           </div>
 
           {/* Settings Panel */}

@@ -5,6 +5,7 @@ import { useStockPricesStore } from '../../stores/useStockPricesStore';
 import { useGrantsStore } from '../../stores/useGrantsStore';
 import { useExercisesStore } from '../../stores/useExercisesStore';
 import { useCurrencyStore } from '../../stores/useCurrencyStore';
+import { useTaxSettingsStore } from '../../stores/useTaxSettingsStore';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, onForceRefr
   const exercises = useExercisesStore((state) => state.exercises);
   const stockPrices = useStockPricesStore((state) => state.stockPrices);
   const currencyState = useCurrencyStore();
+  const taxSettings = useTaxSettingsStore();
 
   const [apiKeyInput, setApiKeyInput] = useState(polygonApiKey || '');
   const [isEditingApiKey, setIsEditingApiKey] = useState(false);
@@ -67,6 +69,11 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, onForceRefr
         autoFetchEnabled,
         polygonApiKey: polygonApiKey || '',
         isDarkMode,
+      },
+      taxSettings: {
+        marginalTaxRate: taxSettings.marginalTaxRate,
+        annualIncome: taxSettings.annualIncome,
+        useProgressiveTax: taxSettings.useProgressiveTax,
       }
     };
 
@@ -125,6 +132,15 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, onForceRefr
           if (typeof importedData.settings.isDarkMode === 'boolean') {
             setTheme(importedData.settings.isDarkMode);
           }
+        }
+
+        // Import tax settings
+        if (importedData.taxSettings) {
+          useTaxSettingsStore.setState({
+            marginalTaxRate: importedData.taxSettings.marginalTaxRate,
+            annualIncome: importedData.taxSettings.annualIncome,
+            useProgressiveTax: importedData.taxSettings.useProgressiveTax ?? true,
+          });
         }
 
         alert('Data imported successfully!');
