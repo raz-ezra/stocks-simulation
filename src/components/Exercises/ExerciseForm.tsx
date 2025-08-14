@@ -10,6 +10,7 @@ import {
   calculateVestedShares,
   calculateExercisedShares,
 } from "../../utils/calculations";
+import { hasMetSection102HoldingPeriod, calculateSection102Tax } from "../../utils/section102";
 import { Exercise } from "../../types";
 
 interface ExerciseFormData {
@@ -121,10 +122,37 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
   const calculateTaxEstimate = () => {
     if (!selectedGrant || !watchedAmount || !watchedExercisePrice) return 0;
 
-    const grossGainUSD = Number(watchedAmount) * Number(watchedExercisePrice);
-    const grantValueUSD = Number(watchedAmount) * selectedGrant.price;
-    const capitalGainUSD = grossGainUSD - grantValueUSD;
+    const amount = Number(watchedAmount);
+    const exercisePrice = Number(watchedExercisePrice);
     const usdToIls = watchedUsdIlsRate || currentUsdIlsRate;
+
+    // Check if Section 102 benefits apply (default to Section 102 if not specified)
+    const isSection102 = selectedGrant.isSection102 !== false;
+    const section102Track = selectedGrant.section102Track || 'capital-gains';
+    const isSection102Eligible = isSection102 && 
+      section102Track === 'capital-gains' &&
+      hasMetSection102HoldingPeriod(selectedGrant);
+
+    if (isSection102Eligible) {
+      // Use Section 102 tax calculation
+      const effectiveMarginalRate = marginalTaxRate !== null && !useProgressiveTax 
+        ? marginalTaxRate 
+        : 0.47; // Default to high rate if not specified
+      
+      const { totalTax } = calculateSection102Tax(
+        selectedGrant,
+        exercisePrice,
+        amount,
+        effectiveMarginalRate
+      );
+      
+      return totalTax;
+    }
+
+    // Regular tax calculation (non-Section 102)
+    const grossGainUSD = amount * exercisePrice;
+    const grantValueUSD = amount * selectedGrant.price;
+    const capitalGainUSD = grossGainUSD - grantValueUSD;
 
     if (selectedGrant.type === "RSUs") {
       // RSUs: Income tax on the entire gross gain
@@ -149,7 +177,6 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
       return taxILS / usdToIls;
     } else {
       // Options: Capital gains tax (25%) only on the profit
-      // If held under Section 102 for 2+ years, otherwise may be higher
       return capitalGainUSD * 0.25;
     }
   };
@@ -515,13 +542,29 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
                   isDarkMode ? "text-gray-400" : "text-gray-500"
                 }`}
               >
-                {selectedGrant.type === "RSUs"
-                  ? marginalTaxRate !== null && !useProgressiveTax
-                    ? `${(marginalTaxRate * 100).toFixed(0)}% Marginal Rate`
-                    : annualIncome !== null && annualIncome > 0
-                    ? "Progressive (on top of income)"
-                    : "Progressive Income Tax"
-                  : "25% Capital Gains"}
+                {(() => {
+                  const isSection102 = selectedGrant.isSection102 !== false;
+                  const section102Track = selectedGrant.section102Track || 'capital-gains';
+                  const isSection102Eligible = isSection102 && 
+                    section102Track === 'capital-gains' &&
+                    hasMetSection102HoldingPeriod(selectedGrant);
+                  
+                  if (isSection102Eligible) {
+                    return "Section 102 Tax Benefits Applied";
+                  }
+                  
+                  if (isSection102 && !hasMetSection102HoldingPeriod(selectedGrant)) {
+                    return "Section 102 (not yet eligible - 2yr hold required)";
+                  }
+                  
+                  return selectedGrant.type === "RSUs"
+                    ? marginalTaxRate !== null && !useProgressiveTax
+                      ? `${(marginalTaxRate * 100).toFixed(0)}% Marginal Rate`
+                      : annualIncome !== null && annualIncome > 0
+                      ? "Progressive (on top of income)"
+                      : "Progressive Income Tax"
+                    : "25% Capital Gains";
+                })()}
               </p>
             </div>
             <div>

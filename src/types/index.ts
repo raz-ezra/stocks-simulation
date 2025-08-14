@@ -7,6 +7,8 @@ export interface Grant {
   price: number;
   type: 'RSUs' | 'Options';
   ticker: string;
+  isSection102?: boolean; // Whether this grant qualifies for Section 102 tax benefits
+  section102Track?: 'capital-gains' | 'ordinary-income'; // Which Section 102 track applies
 }
 
 export interface Exercise {
