@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { StockPrice } from '../types';
+import { getStorageKey } from '../utils/storage';
 
 interface StockPricesStore {
   stockPrices: { [ticker: string]: StockPrice };
@@ -83,7 +84,7 @@ export const useStockPricesStore = create<StockPricesStore>()(
         }),
     }),
     {
-      name: 'stock-prices-storage',
+      name: getStorageKey('stock-prices-storage'),
       serialize: (state) => {
         return JSON.stringify(state);
       },

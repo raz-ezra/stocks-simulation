@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getStorageKey } from '../utils/storage';
 
 interface TaxSettingsState {
   marginalTaxRate: number | null; // User's marginal tax rate (0.10 to 0.50)
@@ -22,7 +23,7 @@ export const useTaxSettingsStore = create<TaxSettingsState>()(
       setUseProgressiveTax: (useProgressive) => set({ useProgressiveTax: useProgressive }),
     }),
     {
-      name: 'tax-settings-storage',
+      name: getStorageKey('tax-settings-storage'),
     }
   )
 );

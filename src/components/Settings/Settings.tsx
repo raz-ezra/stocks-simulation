@@ -6,16 +6,14 @@ import { useGrantsStore } from "../../stores/useGrantsStore";
 import { useExercisesStore } from "../../stores/useExercisesStore";
 import { useCurrencyStore } from "../../stores/useCurrencyStore";
 import { useTaxSettingsStore } from "../../stores/useTaxSettingsStore";
+import { initializeMockData } from "../../utils/storage";
 
 interface SettingsProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({
-  isOpen,
-  onClose,
-}) => {
+export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Settings store
@@ -26,6 +24,8 @@ export const Settings: React.FC<SettingsProps> = ({
     setAutoRefreshInterval,
     finnhubApiKey,
     setFinnhubApiKey,
+    useMockData,
+    setUseMockData,
   } = useSettingsStore();
 
   // Theme store
@@ -61,6 +61,21 @@ export const Settings: React.FC<SettingsProps> = ({
   const handleCancelEdit = () => {
     setIsEditingApiKey(false);
     setApiKeyInput(finnhubApiKey || "");
+  };
+
+  const handleMockDataToggle = () => {
+    const newValue = !useMockData;
+    setUseMockData(newValue);
+
+    if (newValue) {
+      // Initialize mock data if switching to mock mode
+      initializeMockData();
+    }
+
+    // Force page reload to apply the new storage registry
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
   };
 
   const exportData = () => {
@@ -331,6 +346,50 @@ export const Settings: React.FC<SettingsProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Mock Data Toggle */}
+          <div>
+            <h3
+              className={`text-sm font-medium mb-3 ${
+                isDarkMode ? "text-gray-200" : "text-gray-700"
+              }`}
+            >
+              Data Mode
+            </h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <span
+                  className={`text-sm ${
+                    isDarkMode ? "text-gray-300" : "text-gray-600"
+                  }`}
+                >
+                  Use mock data
+                </span>
+                <p
+                  className={`text-xs ${
+                    isDarkMode ? "text-gray-400" : "text-gray-500"
+                  }`}
+                >
+                  Switch to sample data with 3 LMND grants and 2 exercises
+                </p>
+              </div>
+              <button
+                onClick={handleMockDataToggle}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                  useMockData ? "bg-indigo-600" : "bg-gray-200"
+                }`}
+                role="switch"
+                aria-checked={useMockData}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    useMockData ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
           {/* Auto-fetch Controls */}
           <div>
             <h3
@@ -406,11 +465,11 @@ export const Settings: React.FC<SettingsProps> = ({
                       isDarkMode ? "text-gray-400" : "text-gray-500"
                     }`}
                   >
-                    How often to fetch fresh stock prices (shorter intervals use more API calls)
+                    How often to fetch fresh stock prices (shorter intervals use
+                    more API calls)
                   </p>
                 </div>
               )}
-
             </div>
           </div>
 

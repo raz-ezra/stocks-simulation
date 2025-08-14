@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Exercise } from '../types';
+import { getStorageKey } from '../utils/storage';
 
 interface ExercisesStore {
   exercises: Exercise[];
@@ -49,7 +50,7 @@ export const useExercisesStore = create<ExercisesStore>()(
         })),
     }),
     {
-      name: 'exercises-storage',
+      name: getStorageKey('exercises-storage'),
       serialize: (state) => {
         return JSON.stringify(state);
       },

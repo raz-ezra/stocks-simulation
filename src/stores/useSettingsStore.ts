@@ -8,6 +8,8 @@ interface SettingsState {
   setAutoRefreshInterval: (interval: number) => void;
   finnhubApiKey: string | null;
   setFinnhubApiKey: (key: string) => void;
+  useMockData: boolean;
+  setUseMockData: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -16,6 +18,7 @@ export const useSettingsStore = create<SettingsState>()(
       autoFetchEnabled: true, // Default to enabled
       autoRefreshInterval: 30, // Default to 30 seconds
       finnhubApiKey: null,
+      useMockData: false, // Default to real data
       
       setAutoFetchEnabled: (enabled) =>
         set({ autoFetchEnabled: enabled }),
@@ -25,6 +28,9 @@ export const useSettingsStore = create<SettingsState>()(
         
       setFinnhubApiKey: (key) =>
         set({ finnhubApiKey: key }),
+        
+      setUseMockData: (enabled) =>
+        set({ useMockData: enabled }),
     }),
     {
       name: 'settings-storage',

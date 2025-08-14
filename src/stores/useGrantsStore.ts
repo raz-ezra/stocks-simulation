@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Grant } from '../types';
 import { stockPriceTrigger } from '../services/stockPriceTrigger';
+import { getStorageKey } from '../utils/storage';
 
 interface GrantsStore {
   grants: Grant[];
@@ -54,7 +55,7 @@ export const useGrantsStore = create<GrantsStore>()(
         [...new Set(get().grants.map((grant) => grant.ticker))],
     }),
     {
-      name: 'grants-storage',
+      name: getStorageKey('grants-storage'),
       serialize: (state) => {
         return JSON.stringify(state);
       },
