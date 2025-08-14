@@ -32,17 +32,23 @@ export const useStockPricesStore = create<StockPricesStore>()(
         })),
       
       setStockPriceError: (ticker, error) =>
-        set((state) => ({
-          stockPrices: {
-            ...state.stockPrices,
-            [ticker]: {
-              ticker,
-              price: 0,
-              lastUpdated: new Date(),
-              error,
+        set((state) => {
+          const existingData = state.stockPrices[ticker];
+          return {
+            stockPrices: {
+              ...state.stockPrices,
+              [ticker]: {
+                ticker,
+                // Preserve last successful price, or use 0 if never had one
+                price: existingData && !existingData.error ? existingData.price : 0,
+                lastUpdated: new Date(),
+                error,
+                // Preserve provider info if exists
+                provider: existingData ? existingData.provider : undefined,
+              },
             },
-          },
-        })),
+          };
+        }),
       
       getStockPrice: (ticker) => get().stockPrices[ticker],
       

@@ -37,6 +37,7 @@ const AppContent: React.FC = () => {
 
   // Settings store
   const autoFetchEnabled = useSettingsStore((state) => state.autoFetchEnabled);
+  const autoRefreshInterval = useSettingsStore((state) => state.autoRefreshInterval);
 
   // Currency store actions
   const setUsdIlsRate = useCurrencyStore((state) => state.setUsdIlsRate);
@@ -148,27 +149,29 @@ const AppContent: React.FC = () => {
     [setStockPrice, setStockPriceError]
   );
 
-  // Initial stock price fetch and auto-fetch setup
+  // HTTP polling setup for stock price updates
   useEffect(() => {
     const tickers = getAllTickers();
     if (tickers.length === 0) return;
 
-    // Initial fetch (will use cache if valid)
-    fetchPrices(tickers, false);
+    // Initial fetch - always force refresh to get latest data
+    fetchPrices(tickers, true);
 
     // Set up auto-fetch interval if enabled
     if (autoFetchEnabled) {
       const interval = setInterval(() => {
         const currentTickers = getAllTickers();
         if (currentTickers.length > 0) {
-          fetchPrices(currentTickers, false); // This will only fetch if cache is invalid (older than 5 minutes)
+          // Always force refresh on intervals to get fresh data
+          fetchPrices(currentTickers, true);
         }
-      }, 60 * 1000); // Every minute
+      }, autoRefreshInterval * 1000); // Convert seconds to milliseconds
+      
       return () => {
         clearInterval(interval);
       };
     }
-  }, [getAllTickers, fetchPrices, autoFetchEnabled, clearExpiredCache]);
+  }, [getAllTickers, fetchPrices, autoFetchEnabled, autoRefreshInterval, clearExpiredCache]);
 
   return (
     <>
@@ -274,7 +277,7 @@ const AppContent: React.FC = () => {
 
           {/* Hero Section - Overview (Always Visible) */}
           <div className="mb-6">
-            <Overview />
+            <Overview onForceRefresh={handleForceRefresh} />
           </div>
 
           {/* Collapsible Sections */}
@@ -298,7 +301,6 @@ const AppContent: React.FC = () => {
           <Settings
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
-            onForceRefresh={handleForceRefresh}
           />
         </div>
       </div>

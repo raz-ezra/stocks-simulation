@@ -4,21 +4,27 @@ import { persist } from 'zustand/middleware';
 interface SettingsState {
   autoFetchEnabled: boolean;
   setAutoFetchEnabled: (enabled: boolean) => void;
-  polygonApiKey: string | null;
-  setPolygonApiKey: (key: string) => void;
+  autoRefreshInterval: number; // in seconds
+  setAutoRefreshInterval: (interval: number) => void;
+  finnhubApiKey: string | null;
+  setFinnhubApiKey: (key: string) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       autoFetchEnabled: true, // Default to enabled
-      polygonApiKey: null,
+      autoRefreshInterval: 30, // Default to 30 seconds
+      finnhubApiKey: null,
       
       setAutoFetchEnabled: (enabled) =>
         set({ autoFetchEnabled: enabled }),
         
-      setPolygonApiKey: (key) =>
-        set({ polygonApiKey: key }),
+      setAutoRefreshInterval: (interval) =>
+        set({ autoRefreshInterval: interval }),
+        
+      setFinnhubApiKey: (key) =>
+        set({ finnhubApiKey: key }),
     }),
     {
       name: 'settings-storage',

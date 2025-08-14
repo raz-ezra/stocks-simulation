@@ -10,7 +10,11 @@ import {
   formatCurrency,
 } from "../../utils/calculations";
 
-export const Overview: React.FC = () => {
+interface OverviewProps {
+  onForceRefresh: () => void;
+}
+
+export const Overview: React.FC<OverviewProps> = ({ onForceRefresh }) => {
   const grants = useGrantsStore((state) => state.grants);
   const exercises = useExercisesStore((state) => state.exercises);
   const stockPrices = useStockPricesStore((state) => state.stockPrices);
@@ -106,7 +110,24 @@ export const Overview: React.FC = () => {
             <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
               Current Prices
             </h3>
-
+            <button
+              onClick={onForceRefresh}
+              className={`p-2 rounded-full transition-colors ${
+                isDarkMode 
+                  ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' 
+                  : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+              }`}
+              title="Force refresh all prices"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+                />
+              </svg>
+            </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {tickers.map((ticker) => {
@@ -117,9 +138,26 @@ export const Overview: React.FC = () => {
                   <div className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
                     {stockData ? (
                       stockData.error ? (
-                        <span className="text-red-500 text-sm">
-                          {stockData.error}
-                        </span>
+                        <div className="space-y-1">
+                          <div className="flex items-center">
+                            <span className="text-red-500 text-lg mr-1">⚠️</span>
+                            <span className="text-red-500 text-sm font-medium">API Failed</span>
+                          </div>
+                          {stockData.price > 0 ? (
+                            <div>
+                              <div className={`text-lg ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                {formatCurrency(stockData.price)}
+                              </div>
+                              <div className="text-xs text-orange-500">
+                                (Last cached price)
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-red-500 text-sm">
+                              No cached data available
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         formatCurrency(stockData.price)
                       )
@@ -141,6 +179,17 @@ export const Overview: React.FC = () => {
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
+                  {stockData && stockData.error && (
+                    <div className="text-xs text-red-500 mt-2">
+                      <div title={stockData.error} className="truncate">
+                        {stockData.error.length > 50 ? `${stockData.error.substring(0, 50)}...` : stockData.error}
+                      </div>
+                      <div className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Last attempt:{" "}
+                        {new Date(stockData.lastUpdated).toLocaleTimeString()}
+                      </div>
                     </div>
                   )}
                 </div>

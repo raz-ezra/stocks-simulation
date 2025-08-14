@@ -40,11 +40,13 @@ This is a React 18 + TypeScript single-page application for stock equity simulat
 - **Tax Calculations**: Israeli tax rates (RSUs: 47%, Options: 25%)
 
 ### Stock Price Integration (src/services/stockApi.ts)
-- **Primary API**: Polygon.io integration via `VITE_POLYGON_API_KEY`
-- **Rate Limits**: Free tier 5 calls/minute (generous for development)
-- **Mock Fallback**: Predefined prices for demo (LMND, AAPL, GOOGL, MSFT, TSLA, etc.)
-- **Auto-refresh**: 5-minute intervals in App.tsx useEffect
-- **Error Handling**: Automatic fallback to mock data with user notification
+- **Primary Method**: Finnhub REST API integration via `VITE_FINNHUB_API_KEY`
+- **HTTP Polling**: Configurable intervals (10s-5min, default 30s) when auto-fetch enabled
+- **Real-time Data**: Gets current trading price using `/quote` endpoint
+- **Rate Limits**: 30 calls/second (generous for development needs)
+- **Force Refresh**: Always bypasses cache for immediate fresh data
+- **Error Handling**: Failed API calls preserve last successful price from localStorage, clear UI error indicators
+- **No Mock Data**: Only real API calls - requires API key for functionality
 
 ### Currency Exchange Integration (src/services/currencyApi.ts)
 - **Live USD/ILS rates**: Fetched from exchangerate-api.com (free tier)
@@ -113,8 +115,8 @@ If this occurs:
 ## Environment Configuration
 
 ```bash
-# Polygon.io API Key for real-time stock prices
-VITE_POLYGON_API_KEY=your_polygon_api_key_here
+# Finnhub API Key for real-time stock prices
+VITE_FINNHUB_API_KEY=your_finnhub_api_key_here
 ```
 
 **Without API key**: App uses mock data with realistic price variation
