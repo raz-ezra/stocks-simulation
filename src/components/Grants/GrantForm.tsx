@@ -14,6 +14,8 @@ interface GrantFormData {
   price: number;
   type: "RSUs" | "Options";
   ticker: string;
+  isSection102: boolean;
+  section102Track: "capital-gains" | "ordinary-income";
 }
 
 interface GrantFormProps {
@@ -39,6 +41,7 @@ export const GrantForm: React.FC<GrantFormProps> = ({
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<GrantFormData>({
     defaultValues: grant
@@ -50,11 +53,16 @@ export const GrantForm: React.FC<GrantFormProps> = ({
           price: grant.price,
           type: grant.type,
           ticker: grant.ticker,
+          isSection102: grant.isSection102 || false,
+          section102Track: grant.section102Track || "capital-gains",
         }
-      : {},
+      : {
+          isSection102: true,
+          section102Track: "capital-gains",
+        },
   });
 
-  // const ticker = watch('ticker'); // Currently unused
+  const isSection102 = watch('isSection102');
 
   const fetchTickerPrice = async (tickerSymbol: string) => {
     if (!tickerSymbol || tickerSymbol.length < 1) return;
@@ -298,6 +306,44 @@ export const GrantForm: React.FC<GrantFormProps> = ({
             </p>
           )}
         </div>
+      </div>
+
+      {/* Section 102 Settings */}
+      <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+        <div className="flex items-center mb-4">
+          <input
+            type="checkbox"
+            id="isSection102"
+            {...register("isSection102")}
+            className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          />
+          <label htmlFor="isSection102" className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+            Section 102 Grant (Israeli Tax Benefit)
+          </label>
+        </div>
+        
+        {isSection102 && (
+          <div className="ml-6">
+            <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+              Section 102 Track
+            </label>
+            <select
+              {...register("section102Track")}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                isDarkMode 
+                  ? 'bg-gray-700 border-gray-600 text-white'
+                  : 'bg-white border-gray-300 text-gray-900'
+              }`}
+            >
+              <option value="capital-gains">Capital Gains Track (25% tax after 2 years)</option>
+              <option value="ordinary-income">Ordinary Income Track</option>
+            </select>
+            <p className={`text-xs mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              Capital Gains Track: Hold for 2 years to qualify for 25% capital gains tax on appreciation.
+              Grant price is taxed as ordinary income.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className={`flex justify-end space-x-3 pt-6 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>

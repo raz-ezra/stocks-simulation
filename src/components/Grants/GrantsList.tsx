@@ -4,6 +4,7 @@ import { useExercisesStore } from '../../stores/useExercisesStore';
 import { useStockPricesStore } from '../../stores/useStockPricesStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { calculateVestedShares, calculateExercisedShares, formatCurrency, formatDate } from '../../utils/calculations';
+import { getSection102Status } from '../../utils/section102';
 import { Grant } from '../../types';
 
 interface GrantsListProps {
@@ -57,6 +58,9 @@ export const GrantsList: React.FC<GrantsListProps> = ({ onEditGrant }) => {
             </th>
             <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
               Grant Date
+            </th>
+            <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+              Section 102
             </th>
             <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
               Actions
@@ -133,6 +137,21 @@ export const GrantsList: React.FC<GrantsListProps> = ({ onEditGrant }) => {
                 </td>
                 <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   {formatDate(grant.grantDate)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {(() => {
+                    const status = getSection102Status(grant);
+                    const colorClasses = {
+                      green: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
+                      yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
+                      gray: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                    };
+                    return (
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClasses[status.color as keyof typeof colorClasses]}`}>
+                        {status.text}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <button
