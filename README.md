@@ -42,6 +42,12 @@ A comprehensive single-page application for tracking and simulating stock equity
 - **API Integration**: Real-time stock prices (mock data for demo)
 - **Data Persistence**: LocalStorage
 
+## 🚀 Live Demo
+
+**[View Live Demo](https://[your-username].github.io/stocks-simulation/)**
+
+*The app runs entirely in your browser with no backend required. All data is stored locally.*
+
 ## Getting Started
 
 ### Prerequisites
@@ -72,6 +78,9 @@ npm run dev
 ```bash
 npm run build
 ```
+
+### Deployment
+This app is configured for GitHub Pages deployment. See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
 
 ## Key Calculations
 
