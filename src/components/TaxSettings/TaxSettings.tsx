@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTaxSettingsStore } from '../../stores/useTaxSettingsStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { CollapsiblePanel } from '../UI/CollapsiblePanel';
@@ -14,7 +14,6 @@ export const TaxSettings: React.FC = () => {
   } = useTaxSettingsStore();
   
   const { isDarkMode } = useThemeStore();
-  const [isOpen, setIsOpen] = useState(false);
 
   const taxBrackets = [
     { rate: 0.10, range: '0 - 79,560 ₪', monthly: '0 - 6,630 ₪' },
@@ -54,8 +53,7 @@ export const TaxSettings: React.FC = () => {
   return (
     <CollapsiblePanel
       title="Tax Settings"
-      isOpen={isOpen}
-      onToggle={() => setIsOpen(!isOpen)}
+      defaultOpen={false}
       icon={
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
