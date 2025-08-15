@@ -11,9 +11,11 @@ export const TaxSettings: React.FC = () => {
     marginalTaxRate,
     annualIncome,
     useProgressiveTax,
+    isControllingShareholder,
     setMarginalTaxRate,
     setAnnualIncome,
     setUseProgressiveTax,
+    setIsControllingShareholder,
   } = useTaxSettingsStore();
   
   const { isDarkMode } = useThemeStore();
@@ -183,16 +185,43 @@ export const TaxSettings: React.FC = () => {
           </div>
         </div>
 
+        {/* Controlling Shareholder Status */}
+        <div>
+          <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            Shareholder Status
+          </h3>
+          
+          <label className={`flex items-start p-3 rounded-lg border cursor-pointer transition-colors ${
+            isDarkMode ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-200 hover:bg-gray-50'
+          }`}>
+            <input
+              type="checkbox"
+              checked={isControllingShareholder}
+              onChange={(e) => setIsControllingShareholder(e.target.checked)}
+              className="mt-1 mr-3"
+            />
+            <div className="flex-1">
+              <div className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                I am a controlling shareholder (≥10% ownership)
+              </div>
+              <div className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Controlling shareholders pay 30% capital gains tax instead of 25% and are not eligible for Section 102 benefits.
+              </div>
+            </div>
+          </label>
+        </div>
+
         {/* Important Notes */}
         <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-yellow-900/20' : 'bg-yellow-50'}`}>
           <h4 className={`text-sm font-semibold mb-2 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-800'}`}>
             Important Notes
           </h4>
           <ul className={`text-xs space-y-1 ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
-            <li>• These calculations are simplified estimates for planning purposes</li>
-            <li>• Actual tax may vary based on Section 102 status, holding periods, and deductions</li>
-            <li>• Tax brackets frozen for 2025-2027 at 2024 levels</li>
-            <li>• Consult a tax professional for accurate calculations</li>
+            <li>• Calculations include National Insurance (ביטוח לאומי) and Health Tax on employment income</li>
+            <li>• Includes surtax (מס יסף) for high earners above ₪721,560</li>
+            <li>• Section 102 benefits automatically applied when 24-month holding period is met</li>
+            <li>• Controlling shareholders (≥10%) pay 30% capital gains vs 25% for regular shareholders</li>
+            <li>• These are estimates for planning purposes - consult a tax professional for precision</li>
           </ul>
           <div className="mt-3 pt-2 border-t border-yellow-200 dark:border-yellow-700">
             <button
