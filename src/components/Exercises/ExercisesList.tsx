@@ -2,6 +2,7 @@ import React from 'react';
 import { useExercisesStore } from '../../stores/useExercisesStore';
 import { useGrantsStore } from '../../stores/useGrantsStore';
 import { useThemeStore } from '../../stores/useThemeStore';
+import { useCurrencyStore } from '../../stores/useCurrencyStore';
 import { formatCurrency, formatDate } from '../../utils/calculations';
 import { Exercise } from '../../types';
 
@@ -14,6 +15,7 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
   const deleteExercise = useExercisesStore((state) => state.deleteExercise);
   const toggleSimulationInclusion = useExercisesStore((state) => state.toggleSimulationInclusion);
   const grants = useGrantsStore((state) => state.grants);
+  const usdIlsRate = useCurrencyStore((state) => state.usdIlsRate);
   const { isDarkMode } = useThemeStore();
 
   const handleDelete = (id: string) => {
@@ -42,8 +44,21 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
   );
 
   const totalGross = includedExercises.reduce((sum, exercise) => sum + exercise.beforeTax, 0);
-  const totalTax = includedExercises.reduce((sum, exercise) => sum + (exercise.beforeTax - exercise.calculatedNet), 0);
-  const totalNet = includedExercises.reduce((sum, exercise) => sum + (exercise.actualNet || exercise.calculatedNet), 0);
+  
+  // Calculate totals considering currency conversion for actual net amounts
+  const totalNet = includedExercises.reduce((sum, exercise) => {
+    if (exercise.actualNet) {
+      if (exercise.actualNetCurrency === 'ILS') {
+        return sum + (exercise.actualNet / usdIlsRate); // Convert ILS to USD
+      } else {
+        return sum + exercise.actualNet; // Already in USD
+      }
+    } else {
+      return sum + exercise.calculatedNet; // Use calculated net
+    }
+  }, 0);
+  
+  const totalTax = totalGross - totalNet;
 
   return (
     <div className="space-y-6">
@@ -51,15 +66,18 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className={`${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-50'} rounded-lg p-4`}>
           <h3 className="text-sm font-medium text-blue-600 mb-1">Total Gross</h3>
-          <p className={`text-2xl font-bold ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>{formatCurrency(totalGross)}</p>
+          <p className={`text-xl font-bold ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>₪{(totalGross * usdIlsRate).toLocaleString()}</p>
+          <p className={`text-sm ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>{formatCurrency(totalGross)}</p>
         </div>
         <div className={`${isDarkMode ? 'bg-red-900/30' : 'bg-red-50'} rounded-lg p-4`}>
           <h3 className="text-sm font-medium text-red-600 mb-1">Total Tax</h3>
-          <p className={`text-2xl font-bold ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>{formatCurrency(totalTax)}</p>
+          <p className={`text-xl font-bold ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>₪{(totalTax * usdIlsRate).toLocaleString()}</p>
+          <p className={`text-sm ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>{formatCurrency(totalTax)}</p>
         </div>
         <div className={`${isDarkMode ? 'bg-green-900/30' : 'bg-green-50'} rounded-lg p-4`}>
           <h3 className="text-sm font-medium text-green-600 mb-1">Total Net</h3>
-          <p className={`text-2xl font-bold ${isDarkMode ? 'text-green-300' : 'text-green-800'}`}>{formatCurrency(totalNet)}</p>
+          <p className={`text-xl font-bold ${isDarkMode ? 'text-green-300' : 'text-green-800'}`}>₪{(totalNet * usdIlsRate).toLocaleString()}</p>
+          <p className={`text-sm ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>{formatCurrency(totalNet)}</p>
         </div>
       </div>
 
@@ -71,22 +89,17 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
               <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-500'
               }`}>
-                Include
+                Exercise Date
               </th>
               <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-500'
               }`}>
-                Stock
+                Stock & Type
               </th>
               <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-500'
               }`}>
-                Type
-              </th>
-              <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-500'
-              }`}>
-                Amount
+                Shares
               </th>
               <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-500'
@@ -103,10 +116,10 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
               }`}>
                 Net Amount
               </th>
-              <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+              <th className={`px-6 py-3 text-center text-xs font-medium uppercase tracking-wider ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-500'
               }`}>
-                Exercise Date
+                Count in Portfolio
               </th>
               <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-500'
@@ -118,7 +131,21 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
           <tbody className={`divide-y ${isDarkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
             {exercises.map((exercise) => {
               const ticker = getGrantTicker(exercise.grantAmount);
-              const netAmount = exercise.actualNet || exercise.calculatedNet;
+              
+              // Handle actual net amount display in original currency
+              let netAmount = exercise.calculatedNet; // Default to calculated
+              let actualNetDisplay = null;
+              
+              if (exercise.actualNet) {
+                if (exercise.actualNetCurrency === 'ILS') {
+                  netAmount = exercise.actualNet / usdIlsRate; // Convert ILS to USD for calculations
+                  actualNetDisplay = `₪${exercise.actualNet.toLocaleString()}`;
+                } else {
+                  netAmount = exercise.actualNet; // Already in USD
+                  actualNetDisplay = formatCurrency(exercise.actualNet);
+                }
+              }
+              
               const taxAmount = exercise.beforeTax - netAmount;
               const effectiveTaxRate = exercise.beforeTax > 0 ? (taxAmount / exercise.beforeTax) * 100 : 0;
 
@@ -128,38 +155,27 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
                     ? `hover:bg-gray-700 ${exercise.isSimulation ? 'bg-blue-900/20' : ''}` 
                     : `hover:bg-gray-50 ${exercise.isSimulation ? 'bg-blue-50' : ''}`
                 }`}>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {exercise.isSimulation ? (
-                      <input
-                        type="checkbox"
-                        checked={exercise.includeInCalculations || false}
-                        onChange={() => toggleSimulationInclusion(exercise.id)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                    ) : (
-                      <span className="text-green-600 font-medium">✓</span>
-                    )}
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {formatDate(exercise.exerciseDate)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-2">
                       <div className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{ticker}</div>
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        exercise.type === 'RSUs' 
+                          ? (isDarkMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-800')
+                          : (isDarkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-800')
+                      }`}>
+                        {exercise.type}
+                      </span>
                       {exercise.isSimulation && (
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          isDarkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-800'
+                          isDarkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-800'
                         }`}>
                           SIM
                         </span>
                       )}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      exercise.type === 'RSUs' 
-                        ? (isDarkMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-800')
-                        : (isDarkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-800')
-                    }`}>
-                      {exercise.type}
-                    </span>
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>
                     {exercise.amount.toLocaleString()}
@@ -177,17 +193,38 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-green-600">
-                      {formatCurrency(netAmount)}
+                      {actualNetDisplay || formatCurrency(netAmount)}
                     </div>
                     <div className="text-xs text-red-500">
                       Tax: {formatCurrency(taxAmount)} ({effectiveTaxRate.toFixed(1)}%)
                     </div>
                     {exercise.actualNet && (
-                      <div className="text-xs text-blue-500">Actual</div>
+                      <div className="text-xs text-blue-500">
+                        Actual ({exercise.actualNetCurrency || 'USD'})
+                      </div>
                     )}
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {formatDate(exercise.exerciseDate)}
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    {exercise.isSimulation ? (
+                      <div className="flex flex-col items-center space-y-1">
+                        <input
+                          type="checkbox"
+                          checked={exercise.includeInCalculations || false}
+                          onChange={() => toggleSimulationInclusion(exercise.id)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {exercise.includeInCalculations ? 'Yes' : 'No'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center space-y-1">
+                        <span className="text-green-600 font-medium">✓</span>
+                        <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Always
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button

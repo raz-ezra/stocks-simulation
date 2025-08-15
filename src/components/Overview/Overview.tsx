@@ -136,7 +136,12 @@ export const Overview: React.FC<OverviewProps> = ({ onForceRefresh }) => {
     let totalTaxEstimate = 0;
     let totalVestedTaxEstimate = 0;
 
-    grants.forEach((grant) => {
+    // Sort grants by date (oldest first) for consistent ordering
+    const sortedGrants = [...grants].sort((a, b) => 
+      new Date(a.grantDate).getTime() - new Date(b.grantDate).getTime()
+    );
+    
+    sortedGrants.forEach((grant) => {
       const vested = calculateVestedShares(
         grant.amount,
         grant.vestingFrom,

@@ -38,7 +38,12 @@ export const PortfolioBreakdownModal: React.FC<PortfolioBreakdownModalProps> = (
       };
     } = {};
 
-    grants.forEach((grant) => {
+    // Sort grants by date (oldest first) for consistent ordering
+    const sortedGrants = [...grants].sort((a, b) => 
+      new Date(a.grantDate).getTime() - new Date(b.grantDate).getTime()
+    );
+    
+    sortedGrants.forEach((grant) => {
       const vested = calculateVestedShares(
         grant.amount,
         grant.vestingFrom,

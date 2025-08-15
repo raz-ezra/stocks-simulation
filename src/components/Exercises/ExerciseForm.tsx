@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useGrantsStore } from "../../stores/useGrantsStore";
 import { useExercisesStore } from "../../stores/useExercisesStore";
@@ -42,6 +42,11 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
   const currentUsdIlsRate = useCurrencyStore((state) => state.usdIlsRate);
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
   const { marginalTaxRate, annualIncome, useProgressiveTax } = useTaxSettingsStore();
+  
+  // State for actual net currency toggle
+  const [actualNetCurrency, setActualNetCurrency] = useState<'USD' | 'ILS'>(
+    exercise?.actualNetCurrency || 'USD'
+  );
 
   const {
     register,
@@ -124,7 +129,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
 
     const amount = Number(watchedAmount);
     const exercisePrice = Number(watchedExercisePrice);
-    const usdToIls = watchedUsdIlsRate || currentUsdIlsRate;
+    const usdToIls = Number(watchedUsdIlsRate) || currentUsdIlsRate;
 
     // Check if Section 102 benefits apply (default to Section 102 if not specified)
     const isSection102 = selectedGrant.isSection102 !== false;
@@ -216,6 +221,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
       beforeTax: grossGain,
       calculatedNet: netEstimate,
       actualNet: data.actualNet || null,
+      actualNetCurrency: data.actualNet ? actualNetCurrency : undefined,
       isSimulation: data.isSimulation,
       includeInCalculations: data.isSimulation ? true : true, // Simulations default to included
     };
@@ -259,7 +265,9 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
             }}
           >
             <option value="">Select a grant...</option>
-            {grants.map((grant) => {
+            {[...grants].sort((a, b) => 
+              new Date(a.grantDate).getTime() - new Date(b.grantDate).getTime()
+            ).map((grant) => {
               const vested = calculateVestedShares(
                 grant.amount,
                 grant.vestingFrom,
@@ -423,7 +431,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
               isDarkMode ? "text-gray-200" : "text-gray-700"
             } mb-1`}
           >
-            USD/ILS Exchange Rate
+            USD/ILS Exchange Rate on sell date
           </label>
           <input
             type="number"
@@ -454,17 +462,53 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
           >
             Actual Net Amount (Optional)
           </label>
-          <input
-            type="number"
-            step="0.01"
-            {...register("actualNet")}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              isDarkMode
-                ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
-            }`}
-            placeholder="Actual amount received"
-          />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <input
+                type="number"
+                step="0.01"
+                {...register("actualNet")}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  isDarkMode
+                    ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                    : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
+                }`}
+                placeholder={`Actual amount received (${actualNetCurrency})`}
+              />
+            </div>
+            <div className="flex rounded-md border border-gray-300 dark:border-gray-600">
+              <button
+                type="button"
+                onClick={() => setActualNetCurrency('USD')}
+                className={`px-3 py-2 text-sm font-medium rounded-l-md transition-colors ${
+                  actualNetCurrency === 'USD'
+                    ? isDarkMode 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-blue-500 text-white'
+                    : isDarkMode
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                $
+              </button>
+              <button
+                type="button"
+                onClick={() => setActualNetCurrency('ILS')}
+                className={`px-3 py-2 text-sm font-medium rounded-r-md transition-colors ${
+                  actualNetCurrency === 'ILS'
+                    ? isDarkMode 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-blue-500 text-white'
+                    : isDarkMode
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                ₪
+              </button>
+            </div>
+          </div>
           <p
             className={`text-xs ${
               isDarkMode ? "text-gray-400" : "text-gray-500"
@@ -582,7 +626,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
               <p className={`font-semibold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
                 ₪
                 {(
-                  netEstimate * (watchedUsdIlsRate || currentUsdIlsRate)
+                  netEstimate * (Number(watchedUsdIlsRate) || currentUsdIlsRate)
                 ).toLocaleString()}
               </p>
               <p
@@ -590,7 +634,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
                   isDarkMode ? "text-gray-400" : "text-gray-500"
                 }`}
               >
-                Rate: {(watchedUsdIlsRate || currentUsdIlsRate).toFixed(4)}
+                Rate: {(Number(watchedUsdIlsRate) || currentUsdIlsRate).toFixed(4)}
               </p>
             </div>
           </div>

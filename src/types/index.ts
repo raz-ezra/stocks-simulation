@@ -23,6 +23,7 @@ export interface Exercise {
   beforeTax: number;
   calculatedNet: number;
   actualNet: number | null;
+  actualNetCurrency?: 'USD' | 'ILS'; // Currency of the actual net amount
   isSimulation: boolean;
   includeInCalculations?: boolean; // For simulation exercises, whether to include in totals
 }

@@ -103,6 +103,8 @@ export const GrantForm: React.FC<GrantFormProps> = ({
       price: data.price,
       type: data.type,
       ticker: data.ticker.toUpperCase(),
+      isSection102: data.isSection102,
+      section102Track: data.section102Track,
     };
 
     if (grant) {
@@ -191,17 +193,17 @@ export const GrantForm: React.FC<GrantFormProps> = ({
           </label>
           <input
             type="number"
-            step="0.01"
+            step="0.001"
             {...register("price", {
               required: "Grant price is required",
-              min: { value: 0.01, message: "Price must be greater than 0" },
+              min: { value: 0.001, message: "Price must be greater than 0" },
             })}
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               isDarkMode 
                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
             }`}
-            placeholder="e.g., 21.75"
+            placeholder="e.g., 21.750"
           />
           {errors.price && (
             <p className="text-red-500 text-sm mt-1">{errors.price.message}</p>
