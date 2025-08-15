@@ -40,6 +40,7 @@ export const GrowthSimulation: React.FC = () => {
     marginalTaxRate: state.marginalTaxRate,
     annualIncome: state.annualIncome,
     useProgressiveTax: state.useProgressiveTax,
+    isControllingShareholder: state.isControllingShareholder,
   }));
   
   const { isDarkMode } = useThemeStore();
@@ -150,7 +151,7 @@ export const GrowthSimulation: React.FC = () => {
               : taxSettings.marginalTaxRate && !taxSettings.useProgressiveTax
                 ? `Fixed rate (${(taxSettings.marginalTaxRate * 100).toFixed(0)}%)`
                 : 'Progressive (simplified)'
-          } • Includes Section 102 benefits where applicable
+          } • Includes NI/Health tax, surtax, Section 102 benefits{taxSettings.isControllingShareholder ? ' • Controlling shareholder (30% CG)' : ' • Regular shareholder (25% CG)'}
         </div>
       </div>
 

@@ -62,6 +62,15 @@ export const formatCurrency = (amount: number, currency: string = 'USD'): string
   }).format(amount);
 };
 
+export const formatCurrencyPrecise = (amount: number, currency: string = 'USD'): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  }).format(amount);
+};
+
 export const formatDate = (date: Date): string => {
   return format(date, 'MMM dd, yyyy');
 };
