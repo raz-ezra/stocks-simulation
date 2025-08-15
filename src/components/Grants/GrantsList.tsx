@@ -136,6 +136,15 @@ export const GrantsList: React.FC<GrantsListProps> = ({ onEditGrant }) => {
                   <div className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     {formatCurrency(currentValue)}
                   </div>
+                  {currentPrice > 0 && grant.price > 0 && (
+                    <div className={`text-xs ${
+                      currentPrice > grant.price 
+                        ? (isDarkMode ? 'text-green-400' : 'text-green-600')
+                        : (isDarkMode ? 'text-red-400' : 'text-red-500')
+                    }`}>
+                      {currentPrice > grant.price ? '+' : ''}{((currentPrice - grant.price) / grant.price * 100).toFixed(1)}% profit
+                    </div>
+                  )}
                   {grant.type === 'Options' && currentPrice <= grant.price && (
                     <div className="text-xs text-red-500">Underwater</div>
                   )}
