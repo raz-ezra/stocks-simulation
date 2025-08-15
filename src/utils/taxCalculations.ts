@@ -1,21 +1,38 @@
 import { Grant } from '../types';
-import { hasMetSection102HoldingPeriod, calculateSection102Tax } from './section102';
+import { hasMetSection102HoldingPeriod } from './section102';
 
-// Israeli tax brackets for 2024/2025
+// Israeli tax brackets for 2025 (updated)
 const TAX_BRACKETS = [
-  { min: 0, max: 79560, rate: 0.10 },
-  { min: 79560, max: 114120, rate: 0.14 },
-  { min: 114120, max: 177360, rate: 0.20 },
-  { min: 177360, max: 247440, rate: 0.31 },
-  { min: 247440, max: 514920, rate: 0.35 },
-  { min: 514920, max: 663240, rate: 0.47 },
-  { min: 663240, max: Infinity, rate: 0.50 },
+  { min: 0, max: 84120, rate: 0.10 },
+  { min: 84120, max: 120720, rate: 0.14 },
+  { min: 120720, max: 193800, rate: 0.20 },
+  { min: 193800, max: 269280, rate: 0.31 },
+  { min: 269280, max: 560280, rate: 0.35 },
+  { min: 560280, max: 721560, rate: 0.47 },
+  { min: 721560, max: Infinity, rate: 0.50 },
 ];
+
+// National Insurance + Health tax rates for 2025 (monthly caps)
+const NATIONAL_INSURANCE_BRACKETS = [
+  { min: 0, max: 7522, rate: 0.0427 },      // 4.27% up to ₪7,522/month
+  { min: 7522, max: 50695, rate: 0.1217 },  // 12.17% from ₪7,522-50,695/month  
+  { min: 50695, max: Infinity, rate: 0 },   // 0% above ₪50,695/month
+];
+
+// Surtax threshold
+const SURTAX_THRESHOLD = 721560; // ₪721,560 annually
+const SURTAX_LABOR_RATE = 0.03;  // 3% on labor income above threshold
+const SURTAX_PASSIVE_RATE = 0.05; // 5% total on passive income above threshold
+
+// Capital gains rates
+const CAPITAL_GAINS_RATE = 0.25;           // 25% for regular shareholders
+const CAPITAL_GAINS_RATE_CONTROLLING = 0.30; // 30% for controlling shareholders (≥10%)
 
 export interface TaxSettings {
   marginalTaxRate: number | null;
   annualIncome: number | null;
   useProgressiveTax: boolean;
+  isControllingShareholder?: boolean; // ≥10% shareholder (affects CG rate)
 }
 
 export interface TaxCalculationResult {
@@ -24,10 +41,11 @@ export interface TaxCalculationResult {
   netGain: number;
   effectiveTaxRate: number;
   breakdown?: {
-    ordinaryIncomeTax?: number;
+    incomeTax?: number;
+    nationalInsurance?: number;
     capitalGainsTax?: number;
-    progressiveTaxAmount?: number;
-    marginalTaxAmount?: number;
+    surtax?: number;
+    section102Applied?: boolean;
   };
 }
 
@@ -76,6 +94,70 @@ export const getMarginalTaxRate = (income: number): number => {
 };
 
 /**
+ * Calculate National Insurance + Health tax on monthly employment income
+ * Uses monthly caps as per Israeli law
+ */
+export const calculateNationalInsuranceMonthly = (monthlyEmploymentIncomeIls: number): number => {
+  let tax = 0;
+  let remainingIncome = monthlyEmploymentIncomeIls;
+  
+  for (const bracket of NATIONAL_INSURANCE_BRACKETS) {
+    if (remainingIncome <= 0) break;
+    
+    const bracketIncome = Math.min(remainingIncome, bracket.max - bracket.min);
+    tax += bracketIncome * bracket.rate;
+    remainingIncome -= bracketIncome;
+    
+    if (bracket.max === Infinity) break;
+  }
+  
+  return tax;
+};
+
+/**
+ * Calculate additional National Insurance tax on top of existing monthly salary
+ */
+export const calculateAdditionalNationalInsurance = (
+  baseMonthlySalaryIls: number,
+  additionalMonthlyIncomeIls: number
+): number => {
+  const totalMonthly = baseMonthlySalaryIls + additionalMonthlyIncomeIls;
+  const taxWithAdditional = calculateNationalInsuranceMonthly(totalMonthly);
+  const taxWithoutAdditional = calculateNationalInsuranceMonthly(baseMonthlySalaryIls);
+  return taxWithAdditional - taxWithoutAdditional;
+};
+
+/**
+ * Calculate surtax (מס יסף) on annual income above threshold
+ */
+export const calculateSurtax = (
+  annualLaborIncomeIls: number, 
+  annualPassiveIncomeIls: number
+): { laborSurtax: number; passiveSurtax: number; totalSurtax: number } => {
+  const totalIncome = annualLaborIncomeIls + annualPassiveIncomeIls;
+  
+  if (totalIncome <= SURTAX_THRESHOLD) {
+    return { laborSurtax: 0, passiveSurtax: 0, totalSurtax: 0 };
+  }
+  
+  const excessIncome = totalIncome - SURTAX_THRESHOLD;
+  
+  // Labor income gets 3% surtax
+  const laborExcess = Math.min(excessIncome, annualLaborIncomeIls);
+  const laborSurtax = laborExcess * SURTAX_LABOR_RATE;
+  
+  // Passive income gets 5% total surtax (3% base + 2% additional)
+  const passiveExcess = Math.max(0, excessIncome - laborExcess);
+  const passiveSurtax = passiveExcess * SURTAX_PASSIVE_RATE;
+  
+  return {
+    laborSurtax,
+    passiveSurtax,
+    totalSurtax: laborSurtax + passiveSurtax
+  };
+};
+
+/**
  * Calculate tax for RSUs based on user settings and grant details
  */
 export const calculateRSUTax = (
@@ -87,54 +169,96 @@ export const calculateRSUTax = (
   exerciseDate: Date = new Date()
 ): TaxCalculationResult => {
   const grossGain = shares * currentPrice;
+  const grantValue = shares * grant.price;
+  const appreciation = grossGain - grantValue;
   
-  // Convert USD to ILS for tax calculation
   const grossGainIls = grossGain * usdToIls;
-  
-  let totalTax = 0;
-  let breakdown: TaxCalculationResult['breakdown'] = {};
+  const grantValueIls = grantValue * usdToIls;
+  const appreciationIls = appreciation * usdToIls;
   
   // Check if this is Section 102 and if holding period is met
   const isSection102 = grant.isSection102 !== false;
   const isEligibleForSection102 = isSection102 && hasMetSection102HoldingPeriod(grant, exerciseDate);
   
-  if (isEligibleForSection102) {
-    // Use Section 102 calculation
-    const section102Tax = calculateSection102Tax(
-      grant,
-      currentPrice,
-      shares,
-      taxSettings.marginalTaxRate || getMarginalTaxRate(taxSettings.annualIncome || 0)
-    );
+  let incomeTax = 0;
+  let nationalInsurance = 0;
+  let capitalGainsTax = 0;
+  let surtax = 0;
+  
+  if (isEligibleForSection102 && grant.section102Track === 'capital-gains') {
+    // Section 102 Capital Gains Track: 
+    // - Grant value: income tax + NI (at grant)
+    // - Appreciation: capital gains (25%/30%) + surtax
     
-    totalTax = section102Tax.totalTax * usdToIls; // Convert back to ILS for internal calculation
-    breakdown.ordinaryIncomeTax = section102Tax.ordinaryIncomeTax * usdToIls;
-    breakdown.capitalGainsTax = section102Tax.capitalGainsTax * usdToIls;
-  } else {
-    // Regular RSU tax calculation (treated as ordinary income)
+    // 1. Grant value as income tax (this was already taxed at grant, but we show it for completeness)
     if (taxSettings.useProgressiveTax) {
       if (taxSettings.annualIncome && taxSettings.annualIncome > 0) {
-        // Calculate additional tax on top of existing income
-        totalTax = calculateAdditionalProgressiveTax(taxSettings.annualIncome, grossGainIls);
-        breakdown.progressiveTaxAmount = totalTax;
+        incomeTax = calculateAdditionalProgressiveTax(taxSettings.annualIncome, grantValueIls);
       } else {
-        // Calculate tax as if RSU is only income (simplified progressive)
-        totalTax = calculateProgressiveTax(grossGainIls);
-        breakdown.progressiveTaxAmount = totalTax;
+        incomeTax = calculateProgressiveTax(grantValueIls);
       }
     } else if (taxSettings.marginalTaxRate !== null) {
-      // Use fixed marginal rate
-      totalTax = grossGainIls * taxSettings.marginalTaxRate;
-      breakdown.marginalTaxAmount = totalTax;
+      incomeTax = grantValueIls * taxSettings.marginalTaxRate;
     } else {
-      // Fallback to 47% rate
-      totalTax = grossGainIls * 0.47;
-      breakdown.marginalTaxAmount = totalTax;
+      incomeTax = grantValueIls * 0.47;
     }
+    
+    // 2. National Insurance on grant value
+    if (taxSettings.annualIncome && taxSettings.annualIncome > 0) {
+      const baseMonthlySalary = taxSettings.annualIncome / 12;
+      const additionalMonthlyIncome = grantValueIls / 12;
+      nationalInsurance = calculateAdditionalNationalInsurance(baseMonthlySalary, additionalMonthlyIncome) * 12;
+    } else {
+      const monthlyAmount = grantValueIls / 12;
+      nationalInsurance = calculateNationalInsuranceMonthly(monthlyAmount) * 12;
+    }
+    
+    // 3. Capital gains tax on appreciation
+    const cgRate = taxSettings.isControllingShareholder ? CAPITAL_GAINS_RATE_CONTROLLING : CAPITAL_GAINS_RATE;
+    capitalGainsTax = appreciationIls * cgRate;
+    
+    // 4. Surtax on passive income (appreciation only)
+    const surtaxResult = calculateSurtax(0, appreciationIls);
+    surtax = surtaxResult.passiveSurtax;
+    
+    
+  } else {
+    // Regular RSUs or Section 102 ordinary track: entire amount as employment income
+    
+    // 1. Income Tax on full amount
+    if (taxSettings.useProgressiveTax) {
+      if (taxSettings.annualIncome && taxSettings.annualIncome > 0) {
+        incomeTax = calculateAdditionalProgressiveTax(taxSettings.annualIncome, grossGainIls);
+      } else {
+        incomeTax = calculateProgressiveTax(grossGainIls);
+      }
+    } else if (taxSettings.marginalTaxRate !== null) {
+      incomeTax = grossGainIls * taxSettings.marginalTaxRate;
+    } else {
+      incomeTax = grossGainIls * 0.47; // Fallback
+    }
+    
+    // 2. National Insurance + Health Tax (monthly caps)
+    if (taxSettings.annualIncome && taxSettings.annualIncome > 0) {
+      // Calculate additional NI tax on top of existing salary
+      const baseMonthlySalary = taxSettings.annualIncome / 12;
+      const additionalMonthlyIncome = grossGainIls / 12;
+      nationalInsurance = calculateAdditionalNationalInsurance(baseMonthlySalary, additionalMonthlyIncome) * 12;
+    } else {
+      // No base salary - treat as if equity is only income (simplified)
+      const monthlyAmount = grossGainIls / 12;
+      nationalInsurance = calculateNationalInsuranceMonthly(monthlyAmount) * 12;
+    }
+    
+    // 3. Surtax on labor income
+    const currentAnnualIncome = taxSettings.annualIncome || 0;
+    const surtaxResult = calculateSurtax(currentAnnualIncome + grossGainIls, 0);
+    const baselineSurtax = calculateSurtax(currentAnnualIncome, 0);
+    surtax = surtaxResult.laborSurtax - baselineSurtax.laborSurtax;
   }
   
-  // Convert tax back to USD for result
-  const totalTaxUsd = totalTax / usdToIls;
+  const totalTaxIls = incomeTax + nationalInsurance + capitalGainsTax + surtax;
+  const totalTaxUsd = totalTaxIls / usdToIls;
   const netGain = grossGain - totalTaxUsd;
   const effectiveTaxRate = grossGain > 0 ? totalTaxUsd / grossGain : 0;
   
@@ -143,14 +267,13 @@ export const calculateRSUTax = (
     totalTax: totalTaxUsd,
     netGain,
     effectiveTaxRate,
-    breakdown: Object.keys(breakdown).length > 0 ? {
-      ...breakdown,
-      // Convert breakdown amounts back to USD
-      ordinaryIncomeTax: breakdown.ordinaryIncomeTax ? breakdown.ordinaryIncomeTax / usdToIls : undefined,
-      capitalGainsTax: breakdown.capitalGainsTax ? breakdown.capitalGainsTax / usdToIls : undefined,
-      progressiveTaxAmount: breakdown.progressiveTaxAmount ? breakdown.progressiveTaxAmount / usdToIls : undefined,
-      marginalTaxAmount: breakdown.marginalTaxAmount ? breakdown.marginalTaxAmount / usdToIls : undefined,
-    } : undefined
+    breakdown: {
+      incomeTax: incomeTax / usdToIls,
+      nationalInsurance: nationalInsurance / usdToIls,
+      capitalGainsTax: capitalGainsTax / usdToIls,
+      surtax: surtax / usdToIls,
+      section102Applied: isEligibleForSection102,
+    }
   };
 };
 
@@ -171,55 +294,88 @@ export const calculateOptionTax = (
       grossGain: 0,
       totalTax: 0,
       netGain: 0,
-      effectiveTaxRate: 0
+      effectiveTaxRate: 0,
+      breakdown: {
+        incomeTax: 0,
+        nationalInsurance: 0,
+        capitalGainsTax: 0,
+        surtax: 0,
+        section102Applied: false,
+      }
     };
   }
   
   const grossGain = shares * (currentPrice - grant.price);
-  
-  // Options are typically treated as capital gains (25% in Israel)
-  // Unless it's within Section 102 holding period, then it's ordinary income
+  const grossGainIls = grossGain * usdToIls;
   
   const isSection102 = grant.isSection102 !== false;
   const isEligibleForSection102 = isSection102 && hasMetSection102HoldingPeriod(grant, exerciseDate);
   
-  let totalTax = 0;
-  let breakdown: TaxCalculationResult['breakdown'] = {};
+  let incomeTax = 0;
+  let nationalInsurance = 0;
+  let capitalGainsTax = 0;
+  let surtax = 0;
   
-  if (!isEligibleForSection102) {
-    // Before Section 102 eligibility - treat as ordinary income
-    const grossGainIls = grossGain * usdToIls;
+  if (isEligibleForSection102) {
+    // After Section 102 eligibility - capital gains treatment
+    const cgRate = taxSettings.isControllingShareholder ? CAPITAL_GAINS_RATE_CONTROLLING : CAPITAL_GAINS_RATE;
+    capitalGainsTax = grossGainIls * cgRate;
     
+    // Calculate surtax on passive income
+    const surtaxResult = calculateSurtax(0, grossGainIls);
+    surtax = surtaxResult.passiveSurtax;
+  } else {
+    // Before Section 102 eligibility - treat as employment income
+    
+    // 1. Income Tax
     if (taxSettings.useProgressiveTax) {
       if (taxSettings.annualIncome && taxSettings.annualIncome > 0) {
-        totalTax = calculateAdditionalProgressiveTax(taxSettings.annualIncome, grossGainIls) / usdToIls;
-        breakdown.progressiveTaxAmount = totalTax;
+        incomeTax = calculateAdditionalProgressiveTax(taxSettings.annualIncome, grossGainIls);
       } else {
-        totalTax = calculateProgressiveTax(grossGainIls) / usdToIls;
-        breakdown.progressiveTaxAmount = totalTax;
+        incomeTax = calculateProgressiveTax(grossGainIls);
       }
     } else if (taxSettings.marginalTaxRate !== null) {
-      totalTax = grossGain * taxSettings.marginalTaxRate;
-      breakdown.marginalTaxAmount = totalTax;
+      incomeTax = grossGainIls * taxSettings.marginalTaxRate;
     } else {
-      totalTax = grossGain * 0.47; // Fallback
-      breakdown.marginalTaxAmount = totalTax;
+      incomeTax = grossGainIls * 0.47; // Fallback
     }
-  } else {
-    // After Section 102 eligibility - capital gains rate (25%)
-    totalTax = grossGain * 0.25;
-    breakdown.capitalGainsTax = totalTax;
+    
+    // 2. National Insurance + Health Tax
+    if (taxSettings.annualIncome && taxSettings.annualIncome > 0) {
+      // Calculate additional NI tax on top of existing salary
+      const baseMonthlySalary = taxSettings.annualIncome / 12;
+      const additionalMonthlyIncome = grossGainIls / 12;
+      nationalInsurance = calculateAdditionalNationalInsurance(baseMonthlySalary, additionalMonthlyIncome) * 12;
+    } else {
+      // No base salary - treat as if equity is only income (simplified)
+      const monthlyAmount = grossGainIls / 12;
+      nationalInsurance = calculateNationalInsuranceMonthly(monthlyAmount) * 12;
+    }
+    
+    // 3. Surtax on labor income
+    const currentAnnualIncome = taxSettings.annualIncome || 0;
+    const surtaxResult = calculateSurtax(currentAnnualIncome + grossGainIls, 0);
+    const baselineSurtax = calculateSurtax(currentAnnualIncome, 0);
+    surtax = surtaxResult.laborSurtax - baselineSurtax.laborSurtax;
   }
   
-  const netGain = grossGain - totalTax;
-  const effectiveTaxRate = grossGain > 0 ? totalTax / grossGain : 0;
+  const totalTaxIls = incomeTax + nationalInsurance + capitalGainsTax + surtax;
+  const totalTaxUsd = totalTaxIls / usdToIls;
+  const netGain = grossGain - totalTaxUsd;
+  const effectiveTaxRate = grossGain > 0 ? totalTaxUsd / grossGain : 0;
   
   return {
     grossGain,
-    totalTax,
+    totalTax: totalTaxUsd,
     netGain,
     effectiveTaxRate,
-    breakdown
+    breakdown: {
+      incomeTax: incomeTax / usdToIls,
+      nationalInsurance: nationalInsurance / usdToIls,
+      capitalGainsTax: capitalGainsTax / usdToIls,
+      surtax: surtax / usdToIls,
+      section102Applied: isEligibleForSection102,
+    }
   };
 };
 
