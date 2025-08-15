@@ -3,7 +3,7 @@ import { useGrantsStore } from '../../stores/useGrantsStore';
 import { useExercisesStore } from '../../stores/useExercisesStore';
 import { useStockPricesStore } from '../../stores/useStockPricesStore';
 import { useThemeStore } from '../../stores/useThemeStore';
-import { calculateVestedShares, calculateExercisedShares, formatCurrency, formatDate } from '../../utils/calculations';
+import { calculateVestedShares, calculateExercisedShares, formatCurrency, formatCurrencyPrecise, formatDate } from '../../utils/calculations';
 import { getSection102Status } from '../../utils/section102';
 import { Grant } from '../../types';
 
@@ -32,6 +32,11 @@ export const GrantsList: React.FC<GrantsListProps> = ({ onEditGrant }) => {
       </div>
     );
   }
+
+  // Sort grants by grant date (oldest first)
+  const sortedGrants = [...grants].sort((a, b) => 
+    new Date(a.grantDate).getTime() - new Date(b.grantDate).getTime()
+  );
 
   return (
     <div className="overflow-x-auto">
@@ -68,7 +73,7 @@ export const GrantsList: React.FC<GrantsListProps> = ({ onEditGrant }) => {
           </tr>
         </thead>
         <tbody className={`divide-y ${isDarkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-          {grants.map((grant) => {
+          {sortedGrants.map((grant) => {
             const vested = calculateVestedShares(grant.amount, grant.vestingFrom, grant.vestingYears);
             const exercised = calculateExercisedShares(grant.amount, exercises);
             const availableShares = vested - exercised;
@@ -125,7 +130,7 @@ export const GrantsList: React.FC<GrantsListProps> = ({ onEditGrant }) => {
                   </div>
                 </td>
                 <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {formatCurrency(grant.price)}
+                  {formatCurrencyPrecise(grant.price)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>

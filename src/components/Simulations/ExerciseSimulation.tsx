@@ -7,6 +7,7 @@ import { useThemeStore } from '../../stores/useThemeStore';
 import { useTaxSettingsStore } from '../../stores/useTaxSettingsStore';
 import { calculateVestedShares, calculateExercisedShares, formatCurrency } from '../../utils/calculations';
 import { calculateTaxForGrant } from '../../utils/taxCalculations';
+import { getSection102Status } from '../../utils/section102';
 
 interface ExerciseSelection {
   grantId: string;
@@ -36,12 +37,16 @@ export const ExerciseSimulation: React.FC = () => {
     marginalTaxRate: state.marginalTaxRate,
     annualIncome: state.annualIncome,
     useProgressiveTax: state.useProgressiveTax,
+    isControllingShareholder: state.isControllingShareholder,
   }));
   const { isDarkMode } = useThemeStore();
 
-  // Calculate available shares for each grant
+  // Calculate available shares for each grant (sorted by grant date, oldest first)
   const grantAvailability = useMemo(() => {
-    return grants.map((grant) => {
+    const sortedGrants = [...grants].sort((a, b) => 
+      new Date(a.grantDate).getTime() - new Date(b.grantDate).getTime()
+    );
+    return sortedGrants.map((grant) => {
       const vested = calculateVestedShares(grant.amount, grant.vestingFrom, grant.vestingYears, new Date());
       const exercised = calculateExercisedShares(grant.amount, exercises);
       const available = vested - exercised;
@@ -121,6 +126,7 @@ export const ExerciseSimulation: React.FC = () => {
       tax: taxTotal,
       net: netTotal,
       grossIls: grossTotal * usdIlsRate,
+      taxIls: taxTotal * usdIlsRate,
       netIls: netTotal * usdIlsRate
     };
   }, [exerciseResults, usdIlsRate]);
@@ -156,8 +162,11 @@ export const ExerciseSimulation: React.FC = () => {
       <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg overflow-hidden`}>
         <h4 className={`text-md font-medium ${isDarkMode ? 'text-white border-gray-700' : 'text-gray-800 border-gray-200'} px-6 py-3 border-b`}>Select Grants to Exercise</h4>
         <div className="p-6 space-y-4">
-          {grantAvailability.map((grant) => (
-            <div key={grant.id} className={`${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg p-4`}>
+          {grantAvailability.map((grant) => {
+            const section102Status = getSection102Status(grant);
+            
+            return (
+              <div key={grant.id} className={`${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg p-4`}>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
@@ -173,9 +182,28 @@ export const ExerciseSimulation: React.FC = () => {
                         {grant.isProfitable ? 'In the money' : 'Out of the money'}
                       </span>
                     )}
+                    {/* Section 102 Status */}
+                    <span 
+                      className={`text-xs px-2 py-1 rounded font-medium ${
+                        section102Status.status === 'eligible'
+                          ? (isDarkMode ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-800')
+                          : section102Status.status === 'waiting'
+                            ? (isDarkMode ? 'bg-yellow-900 text-yellow-300' : 'bg-yellow-100 text-yellow-800')
+                            : (isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600')
+                      }`}
+                      title={
+                        section102Status.status === 'eligible' ? 'Section 102 benefits available - capital gains tax rate' :
+                        section102Status.status === 'waiting' ? `Section 102 eligibility in ${section102Status.text}` :
+                        'Not Section 102 or not applicable'
+                      }
+                    >
+                      {section102Status.status === 'eligible' ? '102 ✓' : 
+                       section102Status.status === 'waiting' ? `102 ${section102Status.text}` : 
+                       section102Status.text}
+                    </span>
                   </div>
                   <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} space-y-1`}>
-                    <div>Available: {grant.available.toLocaleString()} shares (Vested: {grant.vested}, Exercised: {grant.exercised})</div>
+                    <div>Available: {Math.ceil(grant.available).toLocaleString()} shares (Vested: {Math.ceil(grant.vested)}, Exercised: {Math.ceil(grant.exercised)})</div>
                     <div>Current Price: {formatCurrency(grant.currentPrice)}</div>
                     {grant.type === 'Options' && (
                       <div>Strike Price: {formatCurrency(grant.price)}</div>
@@ -208,8 +236,9 @@ export const ExerciseSimulation: React.FC = () => {
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -251,7 +280,7 @@ export const ExerciseSimulation: React.FC = () => {
                       </div>
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {result.shares.toLocaleString()}
+                      {Math.ceil(result.shares).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -300,7 +329,7 @@ export const ExerciseSimulation: React.FC = () => {
                 {formatCurrency(totals.tax)}
               </div>
               <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                ₪{(totals.tax * usdIlsRate).toLocaleString()}
+                ₪{totals.taxIls.toLocaleString()}
               </div>
             </div>
             <div className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-4 sm:col-span-2 lg:col-span-1`}>
