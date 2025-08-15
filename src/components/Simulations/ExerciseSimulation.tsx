@@ -28,6 +28,7 @@ interface ExerciseResult {
 
 export const ExerciseSimulation: React.FC = () => {
   const [exerciseSelections, setExerciseSelections] = useState<ExerciseSelection[]>([]);
+  const [customPrices, setCustomPrices] = useState<{[ticker: string]: number}>({});
   
   const grants = useGrantsStore((state) => state.grants);
   const exercises = useExercisesStore((state) => state.exercises);
@@ -50,18 +51,20 @@ export const ExerciseSimulation: React.FC = () => {
       const vested = calculateVestedShares(grant.amount, grant.vestingFrom, grant.vestingYears, new Date());
       const exercised = calculateExercisedShares(grant.amount, exercises);
       const available = vested - exercised;
-      const currentPrice = stockPrices[grant.ticker]?.price || 0;
+      const marketPrice = stockPrices[grant.ticker]?.price || 0;
+      const effectivePrice = customPrices[grant.ticker] !== undefined ? customPrices[grant.ticker] : marketPrice;
       
       return {
         ...grant,
         vested,
         exercised,
         available: Math.max(0, available),
-        currentPrice,
-        isProfitable: grant.type === 'RSUs' || currentPrice > grant.price
+        currentPrice: effectivePrice,
+        marketPrice, // Keep track of market price for display
+        isProfitable: grant.type === 'RSUs' || effectivePrice > grant.price
       };
     });
-  }, [grants, exercises, stockPrices]);
+  }, [grants, exercises, stockPrices, customPrices]);
 
   // Update exercise selection for a grant
   const updateExerciseSelection = (grantId: string, shares: number) => {
@@ -84,13 +87,34 @@ export const ExerciseSimulation: React.FC = () => {
     return exerciseSelections.find(s => s.grantId === grantId)?.shares || 0;
   };
 
+  // Update custom price for a ticker
+  const updateCustomPrice = (ticker: string, price: number) => {
+    setCustomPrices(prev => ({
+      ...prev,
+      [ticker]: price
+    }));
+  };
+
+  // Reset price to market price
+  const resetToMarketPrice = (ticker: string) => {
+    setCustomPrices(prev => {
+      const newPrices = { ...prev };
+      delete newPrices[ticker];
+      return newPrices;
+    });
+  };
+
+  // Get unique tickers from available grants
+  const uniqueTickers = [...new Set(grantAvailability.map(grant => grant.ticker))];
+
   // Calculate exercise results
   const exerciseResults = useMemo((): ExerciseResult[] => {
     return exerciseSelections.map(selection => {
       const grant = grants.find(g => g.id === selection.grantId);
       if (!grant) return null;
       
-      const currentPrice = stockPrices[grant.ticker]?.price || 0;
+      const marketPrice = stockPrices[grant.ticker]?.price || 0;
+      const currentPrice = customPrices[grant.ticker] !== undefined ? customPrices[grant.ticker] : marketPrice;
       
       // Use smart tax calculation
       const taxResult = calculateTaxForGrant(
@@ -113,7 +137,7 @@ export const ExerciseSimulation: React.FC = () => {
         netGain: taxResult.netGain
       };
     }).filter(Boolean) as ExerciseResult[];
-  }, [exerciseSelections, grants, stockPrices, taxSettings, usdIlsRate]);
+  }, [exerciseSelections, grants, stockPrices, taxSettings, usdIlsRate, customPrices]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -157,6 +181,7 @@ export const ExerciseSimulation: React.FC = () => {
           } • Includes Section 102 benefits where applicable
         </div>
       </div>
+
 
       {/* Grant Selection */}
       <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg overflow-hidden`}>
@@ -204,7 +229,27 @@ export const ExerciseSimulation: React.FC = () => {
                   </div>
                   <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} space-y-1`}>
                     <div>Available: {Math.ceil(grant.available).toLocaleString()} shares (Vested: {Math.ceil(grant.vested)}, Exercised: {Math.ceil(grant.exercised)})</div>
-                    <div>Current Price: {formatCurrency(grant.currentPrice)}</div>
+                    <div>
+                      Selling Price: {formatCurrency(grant.currentPrice)}
+                      {customPrices[grant.ticker] !== undefined && (
+                        <span className={`ml-2 text-xs ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                          (Custom)
+                        </span>
+                      )}
+                      {customPrices[grant.ticker] === undefined && grant.marketPrice !== grant.currentPrice && (
+                        <span className={`ml-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Market: {formatCurrency(grant.marketPrice)}
+                        </span>
+                      )}
+                    </div>
+                    {grant.currentPrice > 0 && grant.price > 0 && (
+                      <div>
+                        Profit: {((grant.currentPrice - grant.price) / grant.price * 100).toFixed(1)}%
+                        <span className={`ml-1 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          ({formatCurrency(grant.currentPrice - grant.price)} per share)
+                        </span>
+                      </div>
+                    )}
                     {grant.type === 'Options' && (
                       <div>Strike Price: {formatCurrency(grant.price)}</div>
                     )}
@@ -242,6 +287,68 @@ export const ExerciseSimulation: React.FC = () => {
         </div>
       </div>
 
+      {/* Price Controls */}
+      {uniqueTickers.length > 0 && (
+        <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg overflow-hidden`}>
+          <h4 className={`text-md font-medium ${isDarkMode ? 'text-white border-gray-700' : 'text-gray-800 border-gray-200'} px-6 py-3 border-b`}>Selling Price per Stock</h4>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {uniqueTickers.map((ticker) => {
+                const marketPrice = stockPrices[ticker]?.price || 0;
+                const customPrice = customPrices[ticker];
+                const isCustom = customPrice !== undefined;
+                
+                return (
+                  <div key={ticker} className={`${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg p-4`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>{ticker}</h5>
+                      {isCustom && (
+                        <button
+                          onClick={() => resetToMarketPrice(ticker)}
+                          className={`text-xs px-2 py-1 rounded ${
+                            isDarkMode 
+                              ? 'bg-gray-600 text-gray-300 hover:bg-gray-500' 
+                              : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                          }`}
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mb-2`}>
+                      Market: {formatCurrency(marketPrice)}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={isCustom ? customPrice : marketPrice}
+                        onChange={(e) => updateCustomPrice(ticker, parseFloat(e.target.value) || 0)}
+                        className={`flex-1 px-2 py-1 text-sm border rounded ${
+                          isDarkMode
+                            ? 'border-gray-600 bg-gray-800 text-white'
+                            : 'border-gray-300 bg-white text-gray-900'
+                        } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                        placeholder={marketPrice.toString()}
+                      />
+                    </div>
+                    {isCustom && (
+                      <div className={`text-xs ${isDarkMode ? 'text-blue-400' : 'text-blue-600'} mt-1`}>
+                        Custom price set
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-4`}>
+              💡 Set custom selling prices to simulate different scenarios.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Exercise Results */}
       {exerciseResults.length > 0 && (
         <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg overflow-hidden`}>
@@ -257,7 +364,7 @@ export const ExerciseSimulation: React.FC = () => {
                     Shares
                   </th>
                   <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                    Price Info
+                    Selling Price
                   </th>
                   <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
                     Gross Gain (USD)
@@ -284,7 +391,14 @@ export const ExerciseSimulation: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        <div>Current: {formatCurrency(result.currentPrice)}</div>
+                        <div>
+                          {formatCurrency(result.currentPrice)}
+                          {customPrices[result.ticker] !== undefined && (
+                            <span className={`ml-1 text-xs ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                              (Custom)
+                            </span>
+                          )}
+                        </div>
                         {result.type === 'Options' && (
                           <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                             Strike: {formatCurrency(result.strikePrice)}
