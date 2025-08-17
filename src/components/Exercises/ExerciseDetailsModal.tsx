@@ -30,16 +30,41 @@ export const ExerciseDetailsModal: React.FC<ExerciseDetailsModalProps> = ({
     
     if (grant.type === 'RSUs') {
       const taxAmount = grossGain - exercise.calculatedNet;
-      return {
-        grossGain,
-        ordinaryIncome: grossGain,
-        capitalGains: 0,
-        ordinaryIncomeTax: taxAmount,
-        capitalGainsTax: 0,
-        totalTax: taxAmount,
-        netGain: exercise.calculatedNet,
-        effectiveRate: (taxAmount / grossGain) * 100,
-      };
+      
+      // Check if Section 102 applies at the time of exercise
+      const exerciseDate = exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate);
+      const section102Eligible = grant.isSection102 !== false && hasMetSection102HoldingPeriod(grant, exerciseDate);
+      
+      if (section102Eligible) {
+        // With Section 102: Grant price is ordinary income, appreciation is capital gains
+        const grantValue = grant.price * amount;
+        const appreciation = grossGain - grantValue;
+        const ordinaryTax = grantValue * 0.47; // Or use marginal rate
+        const capitalTax = appreciation * 0.25;
+        
+        return {
+          grossGain,
+          ordinaryIncome: grantValue,
+          capitalGains: appreciation,
+          ordinaryIncomeTax: ordinaryTax,
+          capitalGainsTax: capitalTax,
+          totalTax: ordinaryTax + capitalTax,
+          netGain: exercise.calculatedNet,
+          effectiveRate: ((ordinaryTax + capitalTax) / grossGain) * 100,
+        };
+      } else {
+        // Without Section 102: Everything is ordinary income
+        return {
+          grossGain,
+          ordinaryIncome: grossGain,
+          capitalGains: 0,
+          ordinaryIncomeTax: taxAmount,
+          capitalGainsTax: 0,
+          totalTax: taxAmount,
+          netGain: exercise.calculatedNet,
+          effectiveRate: (taxAmount / grossGain) * 100,
+        };
+      }
     } else if (grant.type === 'Options') {
       const gain = (exercise.exercisePrice - grant.price) * amount;
       const taxAmount = grossGain - exercise.calculatedNet;
@@ -206,11 +231,11 @@ export const ExerciseDetailsModal: React.FC<ExerciseDetailsModalProps> = ({
                   </div>
                   {grant.isSection102 && (
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      hasMetSection102HoldingPeriod(grant)
+                      hasMetSection102HoldingPeriod(grant, exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate))
                         ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                         : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
                     }`}>
-                      Section 102 {hasMetSection102HoldingPeriod(grant) ? '✓' : '(2yr pending)'}
+                      Section 102 {hasMetSection102HoldingPeriod(grant, exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate)) ? '✓' : '(2yr pending)'}
                     </span>
                   )}
                 </div>
@@ -286,41 +311,93 @@ export const ExerciseDetailsModal: React.FC<ExerciseDetailsModalProps> = ({
             
             {grant.type === 'RSUs' && (
               <div className={`space-y-2 mb-4 p-3 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                <div className={`text-xs font-medium mb-2 ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
-                  RSU Components
+                <div className="flex justify-between items-center mb-2">
+                  <div className={`text-xs font-medium ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                    RSU Components
+                  </div>
+                  {grant.isSection102 && (
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      hasMetSection102HoldingPeriod(grant, exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate))
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                    }`}>
+                      Section 102 {hasMetSection102HoldingPeriod(grant, exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate)) ? '✓' : '(2yr pending)'}
+                    </span>
+                  )}
                 </div>
                 
-                {/* RSU Grant */}
-                <div className="flex justify-between items-center">
-                  <div>
-                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      RSU Grant (Free Shares)
-                    </div>
-                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                      {exercise.amount} shares × {formatCurrency(0)}
-                    </div>
-                  </div>
-                  <div className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {formatCurrency(0)}
-                  </div>
-                </div>
-                
-                {/* Full Value as Income */}
+                {/* Grant Value at Vesting */}
                 <div className="flex justify-between items-center">
                   <div>
                     <div className={`text-xs ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                      Full Value (Ordinary Income)
+                      Grant Value at Vesting
                     </div>
                     <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                      {exercise.amount} shares × {formatCurrency(exercise.exercisePrice)}
+                      {exercise.amount} shares × {formatCurrency(grant.price)} (vesting price)
                     </div>
                   </div>
                   <div>
                     <div className={`text-sm font-medium ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                      {formatCurrency(breakdown.grossGain)}
+                      {formatCurrency(exercise.amount * grant.price)}
                     </div>
                     <div className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-500'}`}>
-                      Tax: -{formatCurrency(breakdown.totalTax)}
+                      Tax: -{formatCurrency(breakdown.ordinaryIncomeTax || (exercise.amount * grant.price * 0.47))} (Ordinary Income)
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Appreciation (if Section 102) */}
+                {grant.isSection102 !== false && hasMetSection102HoldingPeriod(grant, exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate)) && exercise.exercisePrice > grant.price && (
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className={`text-xs ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                        Stock Appreciation (Section 102)
+                      </div>
+                      <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        From {formatCurrency(grant.price)} to {formatCurrency(exercise.exercisePrice)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className={`text-sm font-medium ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                        {formatCurrency((exercise.exercisePrice - grant.price) * exercise.amount)}
+                      </div>
+                      <div className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-500'}`}>
+                        Tax: -{formatCurrency(breakdown.capitalGainsTax || ((exercise.exercisePrice - grant.price) * exercise.amount * 0.25))} (25% Capital Gains)
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* No Section 102 - All Ordinary Income */}
+                {(grant.isSection102 === false || !hasMetSection102HoldingPeriod(grant, exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate))) && exercise.exercisePrice > grant.price && (
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className={`text-xs ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                        Stock Appreciation (No Section 102 Benefit)
+                      </div>
+                      <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        From {formatCurrency(grant.price)} to {formatCurrency(exercise.exercisePrice)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className={`text-sm font-medium ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                        {formatCurrency((exercise.exercisePrice - grant.price) * exercise.amount)}
+                      </div>
+                      <div className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-500'}`}>
+                        Tax: -{formatCurrency(((exercise.exercisePrice - grant.price) * exercise.amount * 0.47))} (Ordinary Income)
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Total Sale */}
+                <div className={`pt-2 mt-2 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <div className="flex justify-between items-center">
+                    <div className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Total Sale Proceeds
+                    </div>
+                    <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {formatCurrency(exercise.amount * exercise.exercisePrice)}
                     </div>
                   </div>
                 </div>
@@ -335,11 +412,11 @@ export const ExerciseDetailsModal: React.FC<ExerciseDetailsModalProps> = ({
                   </div>
                   {grant.isSection102 && (
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      hasMetSection102HoldingPeriod(grant)
+                      hasMetSection102HoldingPeriod(grant, exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate))
                         ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                         : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
                     }`}>
-                      Section 102 {hasMetSection102HoldingPeriod(grant) ? '✓' : '(2yr pending)'}
+                      Section 102 {hasMetSection102HoldingPeriod(grant, exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate)) ? '✓' : '(2yr pending)'}
                     </span>
                   )}
                 </div>
@@ -531,10 +608,10 @@ export const ExerciseDetailsModal: React.FC<ExerciseDetailsModalProps> = ({
                 </svg>
                 <div>
                   <div className={`text-sm font-medium ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                    Section 102 {hasMetSection102HoldingPeriod(grant) ? 'Qualified' : 'Not Qualified'}
+                    Section 102 {hasMetSection102HoldingPeriod(grant, exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate)) ? 'Qualified' : 'Not Qualified'}
                   </div>
                   <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {hasMetSection102HoldingPeriod(grant) 
+                    {hasMetSection102HoldingPeriod(grant, exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate)) 
                       ? 'Holding period met - eligible for capital gains treatment'
                       : 'Holding period not met - taxed as ordinary income'}
                   </div>
