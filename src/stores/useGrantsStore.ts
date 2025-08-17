@@ -66,11 +66,18 @@ export const useGrantsStore = create<GrantsStore>()(
           if (parsed.state && parsed.state.grants) {
             parsed.state.grants = parsed.state.grants.map((grant: any) => {
               try {
-                return {
+                const parsedGrant = {
                   ...grant,
                   vestingFrom: new Date(grant.vestingFrom),
                   grantDate: new Date(grant.grantDate),
                 };
+                
+                // Handle ESPP-specific purchaseDate field
+                if (grant.purchaseDate) {
+                  parsedGrant.purchaseDate = new Date(grant.purchaseDate);
+                }
+                
+                return parsedGrant;
               } catch (error) {
                 console.warn('Error parsing grant dates:', error);
                 // Return grant with current date as fallback
@@ -78,6 +85,7 @@ export const useGrantsStore = create<GrantsStore>()(
                   ...grant,
                   vestingFrom: new Date(),
                   grantDate: new Date(),
+                  purchaseDate: grant.purchaseDate ? new Date() : undefined,
                 };
               }
             });

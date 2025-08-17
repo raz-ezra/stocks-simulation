@@ -13,6 +13,7 @@ import {
 } from "../../utils/calculations";
 import { hasMetSection102HoldingPeriod, calculateSection102Tax } from "../../utils/section102";
 import { Exercise } from "../../types";
+import { TaxBreakdown } from "./TaxBreakdown";
 
 interface ExerciseFormData {
   amount: number;
@@ -59,9 +60,11 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
     defaultValues: exercise
       ? {
           amount: exercise.amount,
-          grantId:
+          grantId: exercise.grantId || 
             grants.find((g) => g.amount === exercise.grantAmount)?.id || "",
-          exerciseDate: exercise.exerciseDate.toISOString().split("T")[0],
+          exerciseDate: exercise.exerciseDate instanceof Date 
+            ? exercise.exerciseDate.toISOString().split("T")[0]
+            : new Date(exercise.exerciseDate).toISOString().split("T")[0],
           exercisePrice: exercise.exercisePrice,
           usdIlsRate: exercise.usdIlsRate,
           actualNet: exercise.actualNet || undefined,
@@ -241,7 +244,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
         setValue("exercisePrice", currentPrice);
       }
 
-      // Auto-fill currency rate with current rate
+      // Auto-fill currency rate with current rate ONLY for new exercises
       setValue("usdIlsRate", currentUsdIlsRate);
     }
   }, [selectedGrant, stockPrices, currentUsdIlsRate, exercise, setValue]);
@@ -254,6 +257,7 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
     const exerciseData = {
       amount: data.amount,
       grantAmount: selectedGrant.amount, // Use the selected grant's amount
+      grantId: selectedGrant.id, // Add the grant ID for unique reference
       exerciseDate: new Date(data.exerciseDate),
       type: selectedGrant.type,
       grantPrice: selectedGrant.price,
@@ -689,6 +693,24 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
             </p>
           </div>
         </div>
+      )}
+
+      {/* Tax Breakdown */}
+      {selectedGrant && watchedAmount && watchedExercisePrice && grossGain > 0 && (
+        <TaxBreakdown
+          grantType={selectedGrant.type}
+          amount={Number(watchedAmount)}
+          grantPrice={selectedGrant.price}
+          exercisePrice={Number(watchedExercisePrice)}
+          taxAmount={taxEstimate}
+          grossGain={grossGain}
+          netGain={netEstimate}
+          usdIlsRate={Number(watchedUsdIlsRate) || currentUsdIlsRate}
+          isSection102={selectedGrant.isSection102}
+          holdingPeriodMet={hasMetSection102HoldingPeriod(selectedGrant)}
+          esppDiscount={selectedGrant.esppDiscount}
+          esppWithTrustee={selectedGrant.esppWithTrustee}
+        />
       )}
 
       <div

@@ -96,7 +96,7 @@ export const calculateESPPTax = (
   shares: number,
   withTrustee: boolean = false,       // Whether using trustee (Section 102)
   holdingPeriodMet: boolean = true    // 2 years from purchase date
-): { discountTax: number; capitalGainsTax: number; totalTax: number; immediatelyTaxed: boolean } => {
+): { discountTax: number; capitalGainsTax: number; totalTax: number; immediatelyTaxed: boolean; ordinaryIncomeAmount: number; capitalGainsAmount: number; note?: string } => {
   // The benefit is the discount received
   const discountBenefit = (fairMarketValueAtPurchase - purchasePrice) * shares;
   
@@ -116,7 +116,9 @@ export const calculateESPPTax = (
       discountTax,
       capitalGainsTax,
       totalTax: discountTax + capitalGainsTax,
-      immediatelyTaxed: true // Tax on discount paid at purchase
+      immediatelyTaxed: true, // Tax on discount paid at purchase
+      ordinaryIncomeAmount: discountBenefit,
+      capitalGainsAmount: capitalAppreciation
     };
   } else {
     // With Trustee (Section 102): Tax deferred until sale
@@ -127,18 +129,26 @@ export const calculateESPPTax = (
         discountTax: discountBenefit * 0.47,
         capitalGainsTax: Math.max(0, capitalAppreciation * 0.47),
         totalTax: totalGain * 0.47,
-        immediatelyTaxed: false
+        immediatelyTaxed: false,
+        ordinaryIncomeAmount: totalGain,
+        capitalGainsAmount: 0
       };
     } else {
-      // Held 2+ years: Discount as ordinary income, appreciation as capital gains
-      const discountTax = discountBenefit * 0.47;
-      const capitalGainsTax = Math.max(0, capitalAppreciation * 0.25);
+      // Held 2+ years with Section 102:
+      // Discount is ALWAYS ordinary income (taxed at marginal rate)
+      // Only appreciation gets capital gains treatment
+      // Note: Trustee may withhold at lower rate (e.g., 25%) but you owe your actual marginal rate
+      const discountTax = discountBenefit * 0.47; // Discount taxed as ordinary income at marginal rate
+      const capitalGainsTax = Math.max(0, capitalAppreciation * 0.25); // Appreciation at capital gains rate
       
       return {
         discountTax,
         capitalGainsTax,
         totalTax: discountTax + capitalGainsTax,
-        immediatelyTaxed: false
+        immediatelyTaxed: false,
+        ordinaryIncomeAmount: discountBenefit, // Ordinary income
+        capitalGainsAmount: capitalAppreciation, // Capital gains
+        note: 'Trustee may withhold at lower rate, but discount is taxed at your marginal rate'
       };
     }
   }

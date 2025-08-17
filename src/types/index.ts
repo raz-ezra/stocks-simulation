@@ -19,6 +19,7 @@ export interface Exercise {
   id: string;
   amount: number;
   grantAmount: number;
+  grantId?: string; // Reference to the specific grant
   exerciseDate: Date;
   type: 'RSUs' | 'Options' | 'ESPP';
   grantPrice: number;
