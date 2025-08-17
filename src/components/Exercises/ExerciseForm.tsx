@@ -208,13 +208,19 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
       
       const withTrustee = selectedGrant.esppWithTrustee || false;
       
+      // Get user's marginal tax rate
+      const effectiveMarginalRate = marginalTaxRate !== null && !useProgressiveTax 
+        ? marginalTaxRate 
+        : 0.47; // Default to 47% if not specified
+      
       const { totalTax, immediatelyTaxed, discountTax } = calculateESPPTax(
         selectedGrant.price,
         fairMarketValueAtPurchase,
         exercisePrice,
         amount,
         withTrustee,
-        holdingPeriodMet
+        holdingPeriodMet,
+        effectiveMarginalRate
       );
       
       // For non-trustee ESPP, the discount tax was already paid at purchase

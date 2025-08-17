@@ -1,6 +1,7 @@
 import React from 'react';
 import { Exercise, Grant } from '../../types';
 import { useThemeStore } from '../../stores/useThemeStore';
+import { useTaxSettingsStore } from '../../stores/useTaxSettingsStore';
 import { formatCurrency, formatDate, calculateESPPTax } from '../../utils/calculations';
 import { hasMetSection102HoldingPeriod } from '../../utils/section102';
 
@@ -18,6 +19,7 @@ export const ExerciseDetailsModal: React.FC<ExerciseDetailsModalProps> = ({
   onClose,
 }) => {
   const { isDarkMode } = useThemeStore();
+  const { marginalTaxRate, useProgressiveTax } = useTaxSettingsStore();
 
   if (!isOpen || !exercise || !grant) return null;
 
@@ -77,19 +79,27 @@ export const ExerciseDetailsModal: React.FC<ExerciseDetailsModalProps> = ({
       const holdingPeriodMet = monthsHeld >= 24;
       const withTrustee = grant.esppWithTrustee || false;
       
+      // Get user's marginal tax rate
+      const effectiveMarginalRate = marginalTaxRate !== null && !useProgressiveTax 
+        ? marginalTaxRate 
+        : 0.47; // Default to 47% if not specified
+      
       const {
         discountTax,
         capitalGainsTax,
         totalTax,
         ordinaryIncomeAmount,
         capitalGainsAmount,
+        trusteeTaxWithheld,
+        note
       } = calculateESPPTax(
         grant.price,
         fairMarketValueAtPurchase,
         exercise.exercisePrice,
         amount,
         withTrustee,
-        holdingPeriodMet
+        holdingPeriodMet,
+        effectiveMarginalRate
       );
       
       return {
@@ -99,10 +109,12 @@ export const ExerciseDetailsModal: React.FC<ExerciseDetailsModalProps> = ({
         ordinaryIncomeTax: discountTax,
         capitalGainsTax,
         totalTax,
+        trusteeTaxWithheld,
         netGain: exercise.calculatedNet,
         effectiveRate: (totalTax / grossGain) * 100,
         discountAmount: (fairMarketValueAtPurchase - grant.price) * amount,
         appreciationAmount: (exercise.exercisePrice - fairMarketValueAtPurchase) * amount,
+        esppNote: note,
       };
     }
   };
@@ -179,10 +191,210 @@ export const ExerciseDetailsModal: React.FC<ExerciseDetailsModalProps> = ({
             </div>
           </div>
 
-          {/* Tax Breakdown */}
+          {/* Detailed Transaction Breakdown */}
           <div className={`rounded-lg p-4 mb-6 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
             <h3 className={`text-sm font-semibold mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-              Tax Breakdown
+              Detailed Transaction Breakdown
+            </h3>
+            
+            {/* Grant Type Specific Breakdown */}
+            {grant.type === 'ESPP' && (
+              <div className={`space-y-2 mb-4 p-3 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                <div className="flex justify-between items-center mb-2">
+                  <div className={`text-xs font-medium ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                    ESPP Components
+                  </div>
+                  {grant.isSection102 && (
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      hasMetSection102HoldingPeriod(grant)
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                    }`}>
+                      Section 102 {hasMetSection102HoldingPeriod(grant) ? '✓' : '(2yr pending)'}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Your Investment */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Your Investment (Not Taxed)
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {exercise.amount} shares × {formatCurrency(grant.price)}
+                    </div>
+                  </div>
+                  <div className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {formatCurrency(exercise.amount * grant.price)}
+                  </div>
+                </div>
+                
+                {/* Discount Benefit */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className={`text-xs ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                      Discount Benefit ({((grant.esppDiscount || 0.15) * 100).toFixed(0)}% discount)
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      Market price at purchase: {formatCurrency(grant.price / (1 - (grant.esppDiscount || 0.15)))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={`text-sm font-medium ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                      {formatCurrency((breakdown as any).discountAmount || 0)}
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-500'}`}>
+                      Tax: -{formatCurrency(breakdown.ordinaryIncomeTax)} (Ordinary Income)
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Appreciation */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className={`text-xs ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                      Stock Appreciation
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      From {formatCurrency(grant.price / (1 - (grant.esppDiscount || 0.15)))} to {formatCurrency(exercise.exercisePrice)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={`text-sm font-medium ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                      {formatCurrency((breakdown as any).appreciationAmount || 0)}
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-500'}`}>
+                      Tax: -{formatCurrency(breakdown.capitalGainsTax)} (25% Capital Gains{grant.isSection102 ? ' - Section 102' : ''})
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Total Sale */}
+                <div className={`pt-2 mt-2 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <div className="flex justify-between items-center">
+                    <div className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Total Sale Proceeds
+                    </div>
+                    <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {formatCurrency(breakdown.grossGain)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {grant.type === 'RSUs' && (
+              <div className={`space-y-2 mb-4 p-3 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                <div className={`text-xs font-medium mb-2 ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                  RSU Components
+                </div>
+                
+                {/* RSU Grant */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      RSU Grant (Free Shares)
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {exercise.amount} shares × {formatCurrency(0)}
+                    </div>
+                  </div>
+                  <div className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {formatCurrency(0)}
+                  </div>
+                </div>
+                
+                {/* Full Value as Income */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className={`text-xs ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                      Full Value (Ordinary Income)
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {exercise.amount} shares × {formatCurrency(exercise.exercisePrice)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={`text-sm font-medium ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                      {formatCurrency(breakdown.grossGain)}
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-500'}`}>
+                      Tax: -{formatCurrency(breakdown.totalTax)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {grant.type === 'Options' && (
+              <div className={`space-y-2 mb-4 p-3 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                <div className="flex justify-between items-center mb-2">
+                  <div className={`text-xs font-medium ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                    Options Components
+                  </div>
+                  {grant.isSection102 && (
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      hasMetSection102HoldingPeriod(grant)
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                    }`}>
+                      Section 102 {hasMetSection102HoldingPeriod(grant) ? '✓' : '(2yr pending)'}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Strike Price */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Your Cost (Strike Price)
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {exercise.amount} shares × {formatCurrency(grant.price)}
+                    </div>
+                  </div>
+                  <div className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {formatCurrency(exercise.amount * grant.price)}
+                  </div>
+                </div>
+                
+                {/* Gain */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className={`text-xs ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                      Capital Gain
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      Sale price {formatCurrency(exercise.exercisePrice)} - Strike {formatCurrency(grant.price)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={`text-sm font-medium ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                      {formatCurrency((exercise.exercisePrice - grant.price) * exercise.amount)}
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-red-400' : 'text-red-500'}`}>
+                      Tax: -{formatCurrency(breakdown.totalTax)} (25%)
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Total Sale */}
+                <div className={`pt-2 mt-2 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <div className="flex justify-between items-center">
+                    <div className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Total Sale Proceeds
+                    </div>
+                    <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {formatCurrency(exercise.amount * exercise.exercisePrice)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <h3 className={`text-sm font-semibold mb-3 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+              Tax Summary
             </h3>
             
             {/* Visual Bar */}
@@ -340,13 +552,42 @@ export const ExerciseDetailsModal: React.FC<ExerciseDetailsModalProps> = ({
                 </svg>
                 <div className="flex-1">
                   <div className={`text-sm font-medium ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                    Trustee Withholding vs Actual Tax
+                    Trustee Withholding vs Actual Tax Owed
                   </div>
                   <div className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    The trustee doesn't know your actual tax bracket and may withhold at a standard rate (e.g., 25%). 
-                    The ESPP discount is ordinary income and should be taxed at your marginal rate (up to 47%). 
-                    You may owe additional tax when filing your annual return.
+                    The trustee doesn't know your salary and withholds at the maximum rate (62%) on the discount portion.
+                    However, you actually owe tax based on YOUR marginal rate (which may be lower).
                   </div>
+                  {(breakdown as any).trusteeTaxWithheld && (
+                    <div className={`mt-2 p-2 rounded ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                      <div className="flex justify-between items-center">
+                        <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Trustee Withholds (62% on discount):
+                        </span>
+                        <span className={`text-xs font-semibold ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
+                          {formatCurrency((breakdown as any).trusteeTaxWithheld)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          You Actually Owe:
+                        </span>
+                        <span className={`text-xs font-semibold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                          {formatCurrency(breakdown.totalTax)}
+                        </span>
+                      </div>
+                      {(breakdown as any).trusteeTaxWithheld > breakdown.totalTax && (
+                        <div className={`text-xs mt-2 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                          💡 You may be eligible for a refund of {formatCurrency((breakdown as any).trusteeTaxWithheld - breakdown.totalTax)} when filing your annual tax return
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {(breakdown as any).esppNote && (
+                    <div className={`text-xs mt-2 italic ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {(breakdown as any).esppNote}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

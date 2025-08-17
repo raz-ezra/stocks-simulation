@@ -95,8 +95,9 @@ export const calculateESPPTax = (
   salePrice: number,                  // Price when selling
   shares: number,
   withTrustee: boolean = false,       // Whether using trustee (Section 102)
-  holdingPeriodMet: boolean = true    // 2 years from purchase date
-): { discountTax: number; capitalGainsTax: number; totalTax: number; immediatelyTaxed: boolean; ordinaryIncomeAmount: number; capitalGainsAmount: number; note?: string } => {
+  holdingPeriodMet: boolean = true,   // 2 years from purchase date
+  marginalTaxRate: number = 0.47      // User's actual marginal tax rate (default to 47%)
+): { discountTax: number; capitalGainsTax: number; totalTax: number; immediatelyTaxed: boolean; ordinaryIncomeAmount: number; capitalGainsAmount: number; note?: string; trusteeTaxWithheld?: number } => {
   // The benefit is the discount received
   const discountBenefit = (fairMarketValueAtPurchase - purchasePrice) * shares;
   
@@ -105,9 +106,9 @@ export const calculateESPPTax = (
   
   if (!withTrustee) {
     // Without Trustee: Immediate taxation at purchase
-    // Discount taxed immediately as employment income (47%)
+    // Discount taxed immediately as employment income at your actual marginal rate
     // This tax is paid when shares are purchased, not when sold
-    const discountTax = discountBenefit * 0.47;
+    const discountTax = discountBenefit * marginalTaxRate;
     
     // Future appreciation taxed as capital gains when sold (25%)
     const capitalGainsTax = Math.max(0, capitalAppreciation * 0.25);
@@ -122,33 +123,42 @@ export const calculateESPPTax = (
     };
   } else {
     // With Trustee (Section 102): Tax deferred until sale
+    // IMPORTANT: Trustee doesn't know your salary, so they withhold at maximum rate (up to 62%)
+    // But you actually owe based on your real marginal tax rate
+    const trusteeWithholdingRate = 0.62; // Maximum withholding rate used by trustees
+    
     if (!holdingPeriodMet) {
       // Sold before 2 years: Everything taxed as employment income
       const totalGain = (salePrice - purchasePrice) * shares;
       return {
-        discountTax: discountBenefit * 0.47,
-        capitalGainsTax: Math.max(0, capitalAppreciation * 0.47),
-        totalTax: totalGain * 0.47,
+        discountTax: discountBenefit * marginalTaxRate,
+        capitalGainsTax: Math.max(0, capitalAppreciation * marginalTaxRate),
+        totalTax: totalGain * marginalTaxRate,
+        trusteeTaxWithheld: totalGain * trusteeWithholdingRate, // What trustee actually withholds
         immediatelyTaxed: false,
         ordinaryIncomeAmount: totalGain,
-        capitalGainsAmount: 0
+        capitalGainsAmount: 0,
+        note: `Trustee withholds at ${(trusteeWithholdingRate * 100).toFixed(0)}% but you owe based on your ${(marginalTaxRate * 100).toFixed(0)}% marginal rate`
       };
     } else {
       // Held 2+ years with Section 102:
-      // Discount is ALWAYS ordinary income (taxed at marginal rate)
+      // Discount is ALWAYS ordinary income (taxed at YOUR marginal rate)
       // Only appreciation gets capital gains treatment
-      // Note: Trustee may withhold at lower rate (e.g., 25%) but you owe your actual marginal rate
-      const discountTax = discountBenefit * 0.47; // Discount taxed as ordinary income at marginal rate
+      const discountTax = discountBenefit * marginalTaxRate; // Your actual marginal rate on discount
       const capitalGainsTax = Math.max(0, capitalAppreciation * 0.25); // Appreciation at capital gains rate
+      
+      // Trustee withholds assuming maximum rate on discount and 25% on gains
+      const trusteeTaxWithheld = (discountBenefit * trusteeWithholdingRate) + (capitalAppreciation * 0.25);
       
       return {
         discountTax,
         capitalGainsTax,
         totalTax: discountTax + capitalGainsTax,
+        trusteeTaxWithheld, // What trustee actually takes
         immediatelyTaxed: false,
         ordinaryIncomeAmount: discountBenefit, // Ordinary income
         capitalGainsAmount: capitalAppreciation, // Capital gains
-        note: 'Trustee may withhold at lower rate, but discount is taxed at your marginal rate'
+        note: `Trustee withholds ₪${trusteeTaxWithheld.toFixed(0)} (62% on discount) but you actually owe ₪${(discountTax + capitalGainsTax).toFixed(0)} based on your ${(marginalTaxRate * 100).toFixed(0)}% rate`
       };
     }
   }
@@ -158,7 +168,8 @@ export const calculateESPPTax = (
 export const calculateESPPNetValue = (
   grant: Grant,
   currentPrice: number,
-  exercises: Exercise[]
+  exercises: Exercise[],
+  marginalTaxRate: number = 0.47
 ): number => {
   if (grant.type !== 'ESPP') return 0;
   
@@ -182,7 +193,8 @@ export const calculateESPPNetValue = (
     currentPrice,
     availableShares,
     grant.isSection102,
-    holdingPeriodMet
+    holdingPeriodMet,
+    marginalTaxRate
   );
   
   const grossValue = availableShares * (currentPrice - grant.price);
