@@ -7,6 +7,7 @@ import { Exercises } from "./components/Exercises/Exercises";
 import { Simulations } from "./components/Simulations/Simulations";
 import { Settings } from "./components/Settings/Settings";
 import { TaxSettings } from "./components/TaxSettings/TaxSettings";
+import { CurrencyIndicator } from "./components/UI/CurrencyIndicator";
 import { useGrantsStore } from "./stores/useGrantsStore";
 import { useStockPricesStore } from "./stores/useStockPricesStore";
 import { useCurrencyStore } from "./stores/useCurrencyStore";
@@ -240,7 +241,9 @@ const AppContent: React.FC = () => {
                   Track your stock options, RSUs, and plan your financial future
                 </p>
               </div>
-              <button
+              <div className="flex items-center space-x-3">
+                <CurrencyIndicator />
+                <button
                 onClick={() => setShowSettings(true)}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors border ${
                   isDarkMode
@@ -272,6 +275,7 @@ const AppContent: React.FC = () => {
                 </svg>
                 <span>Settings</span>
               </button>
+              </div>
             </div>
           </header>
 
