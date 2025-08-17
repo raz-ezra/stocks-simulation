@@ -31,8 +31,10 @@ export const PortfolioBreakdownModal: React.FC<PortfolioBreakdownModalProps> = (
       [ticker: string]: {
         totalOptions: number;
         totalRSUs: number;
+        totalESPP: number;
         vestedOptions: number;
         vestedRSUs: number;
+        vestedESPP: number;
         totalValue: number;
         currentPrice: number;
       };
@@ -47,7 +49,9 @@ export const PortfolioBreakdownModal: React.FC<PortfolioBreakdownModalProps> = (
       const vested = calculateVestedShares(
         grant.amount,
         grant.vestingFrom,
-        grant.vestingYears
+        grant.vestingYears,
+        new Date(),
+        grant.type
       );
       
       // Filter exercises to include regular exercises + included simulated exercises
@@ -62,8 +66,10 @@ export const PortfolioBreakdownModal: React.FC<PortfolioBreakdownModalProps> = (
         breakdown[grant.ticker] = {
           totalOptions: 0,
           totalRSUs: 0,
+          totalESPP: 0,
           vestedOptions: 0,
           vestedRSUs: 0,
+          vestedESPP: 0,
           totalValue: 0,
           currentPrice: currentPrice,
         };
@@ -77,10 +83,15 @@ export const PortfolioBreakdownModal: React.FC<PortfolioBreakdownModalProps> = (
           // Total value: net proceeds from all unexercised shares if exercised and sold
           breakdown[grant.ticker].totalValue += totalShares * (currentPrice - grant.price);
         }
-      } else {
+      } else if (grant.type === "RSUs") {
         breakdown[grant.ticker].totalRSUs += Number(grant.amount);
         breakdown[grant.ticker].vestedRSUs += vested;
         // Total value: proceeds from selling all unexercised RSUs
+        breakdown[grant.ticker].totalValue += totalShares * currentPrice;
+      } else if (grant.type === "ESPP") {
+        breakdown[grant.ticker].totalESPP += Number(grant.amount);
+        breakdown[grant.ticker].vestedESPP += vested;
+        // Total value: full market value of all unexercised ESPP shares
         breakdown[grant.ticker].totalValue += totalShares * currentPrice;
       }
     });
@@ -138,10 +149,16 @@ export const PortfolioBreakdownModal: React.FC<PortfolioBreakdownModalProps> = (
                       RSUs
                     </th>
                     <th className={`px-4 py-3 text-right ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      ESPP
+                    </th>
+                    <th className={`px-4 py-3 text-right ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                       Vested Options
                     </th>
                     <th className={`px-4 py-3 text-right ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                       Vested RSUs
+                    </th>
+                    <th className={`px-4 py-3 text-right ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Vested ESPP
                     </th>
                     <th className={`px-4 py-3 text-right ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                       Total Value
@@ -180,10 +197,16 @@ export const PortfolioBreakdownModal: React.FC<PortfolioBreakdownModalProps> = (
                           {data.totalRSUs > 0 ? data.totalRSUs.toLocaleString() : '-'}
                         </td>
                         <td className="px-4 py-3 text-right">
+                          {data.totalESPP > 0 ? data.totalESPP.toLocaleString() : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
                           {data.vestedOptions > 0 ? Math.floor(data.vestedOptions).toLocaleString() : '-'}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {data.vestedRSUs > 0 ? Math.floor(data.vestedRSUs).toLocaleString() : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {data.vestedESPP > 0 ? Math.floor(data.vestedESPP).toLocaleString() : '-'}
                         </td>
                         <td className={`px-4 py-3 text-right font-medium ${
                           data.totalValue > 0 

@@ -74,7 +74,7 @@ export const GrantsList: React.FC<GrantsListProps> = ({ onEditGrant }) => {
         </thead>
         <tbody className={`divide-y ${isDarkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
           {sortedGrants.map((grant) => {
-            const vested = calculateVestedShares(grant.amount, grant.vestingFrom, grant.vestingYears);
+            const vested = calculateVestedShares(grant.amount, grant.vestingFrom, grant.vestingYears, new Date(), grant.type);
             const exercised = calculateExercisedShares(grant.amount, exercises);
             const availableShares = vested - exercised;
             const currentPrice = stockPrices[grant.ticker]?.price || 0;
@@ -83,7 +83,11 @@ export const GrantsList: React.FC<GrantsListProps> = ({ onEditGrant }) => {
             let currentValue = 0;
             if (grant.type === 'RSUs') {
               currentValue = availableShares * currentPrice;
+            } else if (grant.type === 'ESPP') {
+              // ESPP shares are owned, show full market value
+              currentValue = availableShares * currentPrice;
             } else {
+              // Options show only the gain
               currentValue = currentPrice > grant.price ? availableShares * (currentPrice - grant.price) : 0;
             }
 
@@ -107,6 +111,8 @@ export const GrantsList: React.FC<GrantsListProps> = ({ onEditGrant }) => {
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                     grant.type === 'RSUs' 
                       ? 'bg-green-100 text-green-800' 
+                      : grant.type === 'ESPP'
+                      ? 'bg-purple-100 text-purple-800'
                       : 'bg-blue-100 text-blue-800'
                   }`}>
                     {grant.type}

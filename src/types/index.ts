@@ -5,10 +5,14 @@ export interface Grant {
   grantDate: Date;
   vestingYears: number;
   price: number;
-  type: 'RSUs' | 'Options';
+  type: 'RSUs' | 'Options' | 'ESPP';
   ticker: string;
   isSection102?: boolean; // Whether this grant qualifies for Section 102 tax benefits
   section102Track?: 'capital-gains' | 'ordinary-income'; // Which Section 102 track applies
+  esppDiscount?: number; // ESPP discount percentage (e.g., 0.15 for 15% discount)
+  purchaseDate?: Date; // Date when ESPP shares were purchased
+  esppPeriodStartPrice?: number; // Stock price at start of ESPP period (for lookback)
+  esppWithTrustee?: boolean; // Whether ESPP uses trustee (Section 102) or immediate taxation
 }
 
 export interface Exercise {
@@ -16,7 +20,7 @@ export interface Exercise {
   amount: number;
   grantAmount: number;
   exerciseDate: Date;
-  type: 'RSUs' | 'Options';
+  type: 'RSUs' | 'Options' | 'ESPP';
   grantPrice: number;
   exercisePrice: number;
   usdIlsRate: number;
@@ -52,8 +56,10 @@ export interface StockPrice {
 export interface PortfolioSummary {
   totalOptions: number;
   totalRSUs: number;
+  totalESPP: number;
   vestedOptions: number;
   vestedRSUs: number;
+  vestedESPP: number;
   todayWorth: number;
   todayNetWorth: number;
   stockPrices: StockPrice[];

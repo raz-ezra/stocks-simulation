@@ -9,6 +9,7 @@ import { useTaxSettingsStore } from "../../stores/useTaxSettingsStore";
 import {
   calculateVestedShares,
   calculateExercisedShares,
+  calculateESPPTax,
 } from "../../utils/calculations";
 import { hasMetSection102HoldingPeriod, calculateSection102Tax } from "../../utils/section102";
 import { Exercise } from "../../types";
@@ -86,7 +87,9 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
         calculateVestedShares(
           selectedGrant.amount,
           selectedGrant.vestingFrom,
-          selectedGrant.vestingYears
+          selectedGrant.vestingYears,
+          new Date(),
+          selectedGrant.type
         )
       ) -
       calculateExercisedShares(
@@ -180,10 +183,48 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
       // Default: Calculate as if this is the only income (simplified)
       const taxILS = calculateIsraeliIncomeTax(grossGainILS);
       return taxILS / usdToIls;
-    } else {
+    } else if (selectedGrant.type === "Options") {
       // Options: Capital gains tax (25%) only on the profit
       return capitalGainUSD * 0.25;
+    } else if (selectedGrant.type === "ESPP") {
+      // ESPP: Tax calculation depends on trustee option
+      const discount = selectedGrant.esppDiscount || 0.15;
+      
+      // Calculate fair market value (actual market price when purchased)
+      // ESPP uses lookback: purchase price is lower of start or end price minus discount
+      const periodStartPrice = selectedGrant.esppPeriodStartPrice || selectedGrant.price / (1 - discount);
+      const periodEndPrice = selectedGrant.price / (1 - discount); // Reverse calculate from purchase price
+      const fairMarketValueAtPurchase = Math.min(periodStartPrice, periodEndPrice);
+      
+      // Check if holding period is met (2 years from purchase date)
+      const purchaseDate = selectedGrant.purchaseDate || selectedGrant.vestingFrom;
+      const monthsHeld = Math.floor(
+        (new Date().getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
+      );
+      const holdingPeriodMet = monthsHeld >= 24;
+      
+      const withTrustee = selectedGrant.esppWithTrustee || false;
+      
+      const { totalTax, immediatelyTaxed, discountTax } = calculateESPPTax(
+        selectedGrant.price,
+        fairMarketValueAtPurchase,
+        exercisePrice,
+        amount,
+        withTrustee,
+        holdingPeriodMet
+      );
+      
+      // For non-trustee ESPP, the discount tax was already paid at purchase
+      // So we only need to account for capital gains tax when selling
+      if (!withTrustee && immediatelyTaxed) {
+        // Only return the capital gains portion since discount was already taxed
+        return totalTax - discountTax;
+      }
+      
+      return totalTax;
     }
+    
+    return 0;
   };
 
   const taxEstimate = calculateTaxEstimate();
@@ -271,7 +312,9 @@ export const ExerciseForm: React.FC<ExerciseFormProps> = ({
               const vested = calculateVestedShares(
                 grant.amount,
                 grant.vestingFrom,
-                grant.vestingYears
+                grant.vestingYears,
+                new Date(),
+                grant.type
               );
               const exercised = calculateExercisedShares(
                 grant.amount,

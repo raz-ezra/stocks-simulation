@@ -9,6 +9,7 @@ import {
   calculateVestedShares,
   calculateExercisedShares,
   formatCurrency,
+  calculateESPPTax,
 } from "../../utils/calculations";
 import { hasMetSection102HoldingPeriod, calculateSection102Tax } from "../../utils/section102";
 import { PortfolioBreakdownModal } from "./PortfolioBreakdownModal";
@@ -117,17 +118,56 @@ export const Overview: React.FC<OverviewProps> = ({ onForceRefresh }) => {
       // Default: Calculate as if this is the only income (simplified)
       const taxILS = calculateIsraeliIncomeTax(grossGainILS);
       return taxILS / usdIlsRate;
-    } else {
+    } else if (grant.type === "Options") {
       // Options: Capital gains tax (25%) only on the profit
       return Math.max(0, capitalGainUSD * 0.25);
+    } else if (grant.type === "ESPP") {
+      // ESPP: Tax calculation depends on trustee option
+      const currentPrice = stockPrices[grant.ticker]?.price || 0;
+      const discount = grant.esppDiscount || 0.15;
+      
+      // Calculate fair market value considering lookback provision
+      const periodStartPrice = grant.esppPeriodStartPrice || grant.price / (1 - discount);
+      const periodEndPrice = grant.price / (1 - discount);
+      const fairMarketValueAtPurchase = Math.min(periodStartPrice, periodEndPrice);
+      
+      // Check if holding period is met (2 years from purchase date)
+      const purchaseDate = grant.purchaseDate || grant.vestingFrom;
+      const monthsHeld = Math.floor(
+        (new Date().getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
+      );
+      const holdingPeriodMet = monthsHeld >= 24;
+      
+      const withTrustee = grant.esppWithTrustee || false;
+      
+      const { totalTax, immediatelyTaxed, discountTax } = calculateESPPTax(
+        grant.price,
+        fairMarketValueAtPurchase,
+        currentPrice,
+        grant.amount,
+        withTrustee,
+        holdingPeriodMet
+      );
+      
+      // For non-trustee ESPP, discount tax was already paid at purchase
+      if (!withTrustee && immediatelyTaxed) {
+        // Only return capital gains tax portion for future sale
+        return totalTax - discountTax;
+      }
+      
+      return totalTax;
     }
+    
+    return 0;
   };
 
   const calculateSummary = () => {
     let totalOptions = 0;
     let totalRSUs = 0;
+    let totalESPP = 0;
     let vestedOptions = 0;
     let vestedRSUs = 0;
+    let vestedESPP = 0;
     let todayWorth = 0;
     let valueAtGrant = 0;
     let valueAtGrantVested = 0;
@@ -145,7 +185,9 @@ export const Overview: React.FC<OverviewProps> = ({ onForceRefresh }) => {
       const vested = calculateVestedShares(
         grant.amount,
         grant.vestingFrom,
-        grant.vestingYears
+        grant.vestingYears,
+        new Date(),
+        grant.type
       );
       // Filter exercises to include regular exercises + included simulated exercises
       const includedExercises = exercises.filter(exercise => 
@@ -180,7 +222,7 @@ export const Overview: React.FC<OverviewProps> = ({ onForceRefresh }) => {
           totalValue += 0;
           totalVestedValue += 0;
         }
-      } else {
+      } else if (grant.type === "RSUs") {
         totalRSUs += Number(grant.amount);
         vestedRSUs += vested;
         // For RSUs, today's worth is the full current value - only vested
@@ -189,6 +231,16 @@ export const Overview: React.FC<OverviewProps> = ({ onForceRefresh }) => {
         // Total value: proceeds from selling all unexercised RSUs
         totalValue += totalShares * currentPrice;
         // Total vested value: proceeds from selling all vested unexercised RSUs
+        totalVestedValue += availableShares * currentPrice;
+      } else if (grant.type === "ESPP") {
+        totalESPP += Number(grant.amount);
+        vestedESPP += vested;
+        // For ESPP, you own the shares, so value is full current market value
+        const esppValue = availableShares * currentPrice;
+        todayWorth += esppValue;
+        // Total value: full value of all unexercised shares
+        totalValue += totalShares * currentPrice;
+        // Total vested value: full value of vested unexercised shares
         totalVestedValue += availableShares * currentPrice;
       }
 
@@ -222,6 +274,20 @@ export const Overview: React.FC<OverviewProps> = ({ onForceRefresh }) => {
             const taxForVested = calculateTaxForGrant(grant, vestedGrossGain);
             totalVestedTaxEstimate += taxForVested;
           }
+        } else if (grant.type === "ESPP" && currentPrice > grant.price) {
+          // ESPP: Complex tax calculation based on discount and capital gains
+          const totalGain = totalShares * (currentPrice - grant.price);
+          const vestedGain = availableShares * (currentPrice - grant.price);
+          
+          if (totalGain > 0) {
+            const taxForTotal = calculateTaxForGrant(grant, totalShares * currentPrice);
+            totalTaxEstimate += taxForTotal;
+          }
+          
+          if (vestedGain > 0) {
+            const taxForVested = calculateTaxForGrant(grant, availableShares * currentPrice);
+            totalVestedTaxEstimate += taxForVested;
+          }
         }
         // If Options are underwater, no tax (no gain)
       }
@@ -234,8 +300,10 @@ export const Overview: React.FC<OverviewProps> = ({ onForceRefresh }) => {
     return {
       totalOptions,
       totalRSUs,
+      totalESPP,
       vestedOptions,
       vestedRSUs,
+      vestedESPP,
       todayWorth,
       valueAtGrant,
       totalValue,
