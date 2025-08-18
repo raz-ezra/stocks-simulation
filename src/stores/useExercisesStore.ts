@@ -64,6 +64,15 @@ export const useExercisesStore = create<ExercisesStore>()(
                 return {
                   ...exercise,
                   exerciseDate: new Date(exercise.exerciseDate),
+                  // Ensure numeric fields are properly typed
+                  usdIlsRate: Number(exercise.usdIlsRate),
+                  amount: Number(exercise.amount),
+                  grantAmount: Number(exercise.grantAmount),
+                  grantPrice: Number(exercise.grantPrice),
+                  exercisePrice: Number(exercise.exercisePrice),
+                  beforeTax: Number(exercise.beforeTax),
+                  calculatedNet: Number(exercise.calculatedNet),
+                  actualNet: exercise.actualNet ? Number(exercise.actualNet) : null,
                 };
               } catch (error) {
                 console.warn('Error parsing exercise dates:', error);
@@ -71,6 +80,7 @@ export const useExercisesStore = create<ExercisesStore>()(
                 return {
                   ...exercise,
                   exerciseDate: new Date(),
+                  usdIlsRate: Number(exercise.usdIlsRate) || 3.65,
                 };
               }
             });

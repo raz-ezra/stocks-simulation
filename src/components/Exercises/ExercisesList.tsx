@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useExercisesStore } from '../../stores/useExercisesStore';
 import { useGrantsStore } from '../../stores/useGrantsStore';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { useCurrencyStore } from '../../stores/useCurrencyStore';
 import { formatCurrency, formatDate } from '../../utils/calculations';
-import { Exercise } from '../../types';
+import { Exercise, Grant } from '../../types';
+import { ExerciseDetailsModal } from './ExerciseDetailsModal';
 
 interface ExercisesListProps {
   onEditExercise: (exercise: Exercise) => void;
@@ -17,6 +18,24 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
   const grants = useGrantsStore((state) => state.grants);
   const usdIlsRate = useCurrencyStore((state) => state.usdIlsRate);
   const { isDarkMode } = useThemeStore();
+  
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  
+  const handleExerciseClick = (exercise: Exercise) => {
+    setSelectedExercise(exercise);
+    setShowDetailsModal(true);
+  };
+  
+  const getGrantForExercise = (exercise: Exercise): Grant | null => {
+    // First try to find by grant ID (new way)
+    if (exercise.grantId) {
+      const grant = grants.find(g => g.id === exercise.grantId);
+      if (grant) return grant;
+    }
+    // Fallback to finding by amount (for backward compatibility)
+    return grants.find(g => g.amount === exercise.grantAmount) || null;
+  };
 
   const handleDelete = (id: string) => {
     if (window.confirm('Are you sure you want to delete this exercise?')) {
@@ -24,8 +43,8 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
     }
   };
 
-  const getGrantTicker = (grantAmount: number): string => {
-    const grant = grants.find(g => g.amount === grantAmount);
+  const getGrantTicker = (exercise: Exercise): string => {
+    const grant = getGrantForExercise(exercise);
     return grant?.ticker || 'Unknown';
   };
 
@@ -130,7 +149,7 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
           </thead>
           <tbody className={`divide-y ${isDarkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
             {exercises.map((exercise) => {
-              const ticker = getGrantTicker(exercise.grantAmount);
+              const ticker = getGrantTicker(exercise);
               
               // Handle actual net amount display in original currency
               let netAmount = exercise.calculatedNet; // Default to calculated
@@ -150,13 +169,16 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
               const effectiveTaxRate = exercise.beforeTax > 0 ? (taxAmount / exercise.beforeTax) * 100 : 0;
 
               return (
-                <tr key={exercise.id} className={`${
+                <tr 
+                  key={exercise.id} 
+                  onClick={() => handleExerciseClick(exercise)}
+                  className={`cursor-pointer ${
                   isDarkMode 
                     ? `hover:bg-gray-700 ${exercise.isSimulation ? 'bg-blue-900/20' : ''}` 
                     : `hover:bg-gray-50 ${exercise.isSimulation ? 'bg-blue-50' : ''}`
                 }`}>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {formatDate(exercise.exerciseDate)}
+                    {formatDate(exercise.exerciseDate instanceof Date ? exercise.exerciseDate : new Date(exercise.exerciseDate))}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-2">
@@ -164,6 +186,8 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                         exercise.type === 'RSUs' 
                           ? (isDarkMode ? 'bg-green-900/50 text-green-300' : 'bg-green-100 text-green-800')
+                          : exercise.type === 'ESPP'
+                          ? (isDarkMode ? 'bg-purple-900/50 text-purple-300' : 'bg-purple-100 text-purple-800')
                           : (isDarkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-800')
                       }`}>
                         {exercise.type}
@@ -210,7 +234,11 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
                         <input
                           type="checkbox"
                           checked={exercise.includeInCalculations || false}
-                          onChange={() => toggleSimulationInclusion(exercise.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleSimulationInclusion(exercise.id);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                         <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -228,13 +256,19 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
-                      onClick={() => onEditExercise(exercise)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditExercise(exercise);
+                      }}
                       className={`mr-3 ${isDarkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-900'}`}
                     >
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDelete(exercise.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(exercise.id);
+                      }}
                       className={`${isDarkMode ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-900'}`}
                     >
                       Delete
@@ -246,6 +280,17 @@ export const ExercisesList: React.FC<ExercisesListProps> = ({ onEditExercise }) 
           </tbody>
         </table>
       </div>
+      
+      {/* Exercise Details Modal */}
+      <ExerciseDetailsModal
+        exercise={selectedExercise}
+        grant={selectedExercise ? getGrantForExercise(selectedExercise) : null}
+        isOpen={showDetailsModal}
+        onClose={() => {
+          setShowDetailsModal(false);
+          setSelectedExercise(null);
+        }}
+      />
     </div>
   );
 };
